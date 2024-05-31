@@ -180,18 +180,12 @@ __do_fork(void *aux)
 	if (!pml4_for_each(parent->pml4, duplicate_pte, parent))
 		goto error;
 #endif
-	/* NOTE: Your code goes here.
-	 * NOTE: Hint) To duplicate the file object, use `file_duplicate`
-	 * NOTE:       in include/filesys/file.h. Note that parent should not return
-	 * NOTE:       from the fork() until this function successfully duplicates
-	 * NOTE:       the resources of parent.*/
-
 	for (int i = 0; i < FDT_MAX; i++)
 	{
 		struct file *file = parent->fdt[i];
 		if (file == NULL)
 			continue;
-		if (file > 2)
+		if (i >= 2)
 			file = file_duplicate(file);
 		current->fdt[i] = file;
 	}
