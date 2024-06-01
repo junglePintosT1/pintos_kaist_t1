@@ -53,6 +53,11 @@ struct page
 
 	/* Your implementation */
 
+	/* NOTE: [VM] 추가적인 정보 추가 */
+	struct hash_elem hash_elem; /* SPT에 넣을 hash_elem */
+	bool writable;				/* 쓰기 가능 여부 */
+	bool is_loaded;				/* 메모리 적재 여부 */
+
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union
@@ -90,20 +95,6 @@ struct page_operations
 #define destroy(page)                \
 	if ((page)->operations->destroy) \
 	(page)->operations->destroy(page)
-
-/* NOTE: [VM] spt_entry 구조체 선언 */
-struct spt_entry
-{
-	enum vm_type type;		   /* 페이지의 타입 */
-	void *va;				   /* spt_entry에서 관리하는 페이지의 주소 */
-	bool writable;			   /* 쓰기 가능 여부 */
-	bool is_loaded;			   /* 물리 메모리 적재 유무 */
-	struct file *file;		   /* va와 매핑된 파일 */
-	size_t file_offset;		   /* 파일 오프셋 */
-	size_t read_bytes;		   /* 가상 페이지에 저장된 데이터의 크기*/
-	size_t zero_bytes;		   /* 가상 페이지의 남은 공간의 크기 (0으로 채워져 있음) */
-	struct hash_elem spt_elem; /* hash elem */
-};
 
 /* NOTE: [VM] supplemental_page_table 구조체 선언 */
 struct supplemental_page_table
