@@ -769,6 +769,12 @@ install_page(void *upage, void *kpage, bool writable)
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
 
+/**
+ * @brief GITBOOD
+ * TODO: load_segment와 lazy_load_segment 함수를 구현하여 실행 파일에서 세그먼트를 로드하는 작업을 수행하라.
+ * 모든 페이지는 커널이 페이지 폴트를 인터셉트할 때만 로드되도록 지연 로딩되어야 한다.
+ */
+
 static bool
 lazy_load_segment(struct page *page, void *aux)
 {
@@ -777,20 +783,19 @@ lazy_load_segment(struct page *page, void *aux)
 	/* TODO: VA is available when calling this function. */
 }
 
-/* Loads a segment starting at offset OFS in FILE at address
- * UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
- * memory are initialized, as follows:
+/**
+ * @brief COMMENT
+ * 파일의 OFS 오프셋에서 시작하여 UPAGE 주소에 세그먼트를 로드합니다.
+ * 총 READ_BYTES + ZER0_BYTES 바이트의 가상 메모리가 다음과 같이 초기화됩니다:
  *
- * - READ_BYTES bytes at UPAGE must be read from FILE
- * starting at offset OFS.
+ * - UPAGE에서 READ_BYTES 바이트는 파일에서 OFS 오프셋부터 읽어야 합니다.
+ * - UPAGE + READ_BYTES에서 ZERO_BYTES 바이트는 0으로 초기화되어야 합니다.
  *
- * - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
+ * 이 함수에 의해 초기화된 페이지는 WRITABLE이 true인 경우 사용자 프로세스에 의해 쓰기 가능해야 하며,
+ * 그렇지 않으면 읽기 전용이어야 합니다.
  *
- * The pages initialized by this function must be writable by the
- * user process if WRITABLE is true, read-only otherwise.
- *
- * Return true if successful, false if a memory allocation error
- * or disk read error occurs. */
+ * 성공적으로 수행되면 true를 반환하고, 메모리 할당 오류 또는 디스크 읽기 오류가 발생하면 false를 반환합니다.
+ */
 static bool
 load_segment(struct file *file, off_t ofs, uint8_t *upage,
 			 uint32_t read_bytes, uint32_t zero_bytes, bool writable)
@@ -807,6 +812,8 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
+		/* TODO: [VM] `aux` 인수로 제공할 보조 값 설정하기 */
+		/* TODO: [VM] 바이너리를 로드하는 데 필요한 정보를 포함하는 구조체를 생성하는 것이 좋다. */
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
 		void *aux = NULL;
 		if (!vm_alloc_page_with_initializer(VM_ANON, upage,
@@ -821,6 +828,15 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 	return true;
 }
 
+/**
+ * @brief GITBOOK
+ * TODO: setup_stack 수정하기
+ *
+ * setup_stack 함수를 수정하여 새로운 메모리 관리 시스템에 맞게 스택 할당을 조정하라.
+ * 첫 번째 스택 페이지는 지연 로딩할 필요 없이 command line의 인자들과 함께 할당하고 초기화 할 수 있다.
+ * 당신은 스택을 확인하는 방법을 제공해야 한다.
+ * - vm/vm.h에서 vm_type의 보조 마커(e.g. VM_MARKER_0)를 사용할 수 있다.
+ */
 /* Create a PAGE of stack at the USER_STACK. Return true on success. */
 static bool
 setup_stack(struct intr_frame *if_)

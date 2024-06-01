@@ -47,7 +47,15 @@ static struct frame *vm_evict_frame(void);
 bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writable,
 									vm_initializer *init, void *aux)
 {
-
+	/* TODO: [VM] vm_alloc_page_with_initializer 구현 */
+	/**
+	 * @brief GITBOOK
+	 * 초기화되지 않은 주어진 type의 페이지 생성.
+	 * 초기화되지 않은 페이지의 swap_in 핸들러는 자동적으로 페이지 타입에 맞게 페이지를 초기화하고 주어진 AUX를 인자로 삼는 INIT 함수를 호출한다.
+	 * 페이지 구조체를 얻게 되면 현재 프로세스의 SPT에 그 페이지를 삽입해라.
+	 * vm.h에 정의되어 있는 VM_TYPE을 사용하면 편리할 것이다.
+	 * 페이지 폴트 핸들러는 연쇄적으로 함수를 호출하고 swap_in 함수를 호출하면 마침내 uninit_initialize 함수에 다다르게 된다. (이미 구현이 되어 있음)
+	 */
 	ASSERT(VM_TYPE(type) != VM_UNINIT)
 
 	struct supplemental_page_table *spt = &thread_current()->spt;
@@ -175,6 +183,12 @@ vm_handle_wp(struct page *page UNUSED)
 {
 }
 
+/**
+ * @brief GITBOOK
+ * TODO: [VM] vm_try_handle_fault 함수 수정
+ *
+ * vm_try_handle_fault 함수를 수정하여 spt_find_page를 통해 페이지 폴트 주소에 해당하는 페이지 구조체를 찾아야 한다.
+ */
 /* Return true on success */
 bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
 						 bool user UNUSED, bool write UNUSED, bool not_present UNUSED)
