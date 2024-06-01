@@ -195,10 +195,9 @@ void vm_dealloc_page(struct page *page)
 	free(page);
 }
 
-/* Claim the page that allocate on VA. */
-
 /**
- * @brief 주어진 va에 페이지를 할당하고, 해당 페이지에 프레임을 할당하는 함수
+ * @brief 주어진 va에 대응하는 페이지를 찾고, 해당 페이지에 프레임을 할당하는 함수
+ * Claim the page that allocate on VA.
  *
  * @param va
  * @return true
@@ -206,10 +205,8 @@ void vm_dealloc_page(struct page *page)
  */
 bool vm_claim_page(void *va)
 {
-	struct page *page = NULL;
-	/* TODO: Fill this function */
-	/* NOTE: va를 위한 페이지를 얻음 - 의문: writable에 어떤 걸 넘겨야하지? */
-	page = vm_alloc_page(VM_UNINIT, va, true);
+	/* NOTE: va를 위한 페이지를 찾기 - 페이지가 존재하지 않을 때에 대한 처리는 사용하는 곳에서! */
+	struct page *page = spt_find_page(&thread_current()->spt, va);
 	if (page == NULL)
 		return false;
 	/* NOTE: 해당 페이지를 인자로 갖는 vm_do_claim_page 호출 */
@@ -232,8 +229,8 @@ vm_do_claim_page(struct page *page)
 	frame->page = page;
 	page->frame = frame;
 
-	/* NOTE: 페이지 테이블에 페이지의 VA와 프레임의 PA를 삽입 - 의문: rw에 뭘 넣어야 할까? */
-	pml4_set_page(thread_current()->pml4, page->va, frame->kva, true);
+	/* NOTE: 페이지 테이블에 페이지의 VA와 프레임의 PA를 삽입 */
+	pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable);
 	return swap_in(page, frame->kva);
 }
 
