@@ -238,9 +238,6 @@ int process_exec(void *f_name) /* NOTE: 강의의 start_process() */
 	success = load(file_name, &_if);
 	lock_release(&filesys_lock);
 
-	/* NOTE: [2.3] 메모리 적재 완료 시 부모 프로세스 다시 진행 (세마포어 이용) */
-	// sema_up(&thread_current()->load_sema);
-
 	/* If load failed, quit. */
 	palloc_free_page(f_name);
 	if (!success)
@@ -252,7 +249,6 @@ int process_exec(void *f_name) /* NOTE: 강의의 start_process() */
 	/* NOTE: [2.1] 스택에 인자 push 후 dump로 출력 */
 	argument_stack(parse, count, &_if.rsp);
 	free(parse);
-	// hex_dump(_if.rsp, _if.rsp, USER_STACK - _if.rsp, true);
 	_if.R.rsi = _if.rsp + sizeof(void (*)());
 	_if.R.rdi = count;
 
