@@ -153,10 +153,10 @@ static struct frame *
 vm_get_frame(void)
 {
 	struct frame *frame = NULL;
-	/* TODO: Fill this function. */
-	/* TODO: [VM] 모든 유저 페이지를 위한 프레임은 PAL_USER을 통해 할당해야 함 */
-	/* TODO: [VM] 스와핑 구현 전에는 페이지 할당 실패 시 PANIC("todo")를 호출할 것 */
+	/* NOTE: [VM] 모든 유저 페이지를 위한 프레임은 PAL_USER을 통해 할당해야 함 */
+	frame = palloc_get_page(PAL_USER | PAL_ZERO);
 
+	/* TODO: 페이지 할당 실패 시 swap out 구현 */
 	ASSERT(frame != NULL);
 	ASSERT(frame->page == NULL);
 	return frame;
