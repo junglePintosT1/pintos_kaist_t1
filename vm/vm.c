@@ -47,15 +47,6 @@ static struct frame *vm_evict_frame(void);
 bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writable,
 									vm_initializer *init, void *aux)
 {
-	/* TODO: [VM] vm_alloc_page_with_initializer 구현 */
-	/**
-	 * @brief GITBOOK
-	 * 초기화되지 않은 주어진 type의 페이지 생성.
-	 * 초기화되지 않은 페이지의 swap_in 핸들러는 자동적으로 페이지 타입에 맞게 페이지를 초기화하고 주어진 AUX를 인자로 삼는 INIT 함수를 호출한다.
-	 * 페이지 구조체를 얻게 되면 현재 프로세스의 SPT에 그 페이지를 삽입해라.
-	 * vm.h에 정의되어 있는 VM_TYPE을 사용하면 편리할 것이다.
-	 * 페이지 폴트 핸들러는 연쇄적으로 함수를 호출하고 swap_in 함수를 호출하면 마침내 uninit_initialize 함수에 다다르게 된다. (이미 구현이 되어 있음)
-	 */
 	ASSERT(VM_TYPE(type) != VM_UNINIT)
 
 	struct supplemental_page_table *spt = &thread_current()->spt;
@@ -63,11 +54,24 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page(spt, upage) == NULL)
 	{
-		/* TODO: Create the page, fetch the initialier according to the VM type,
-		 * TODO: and then create "uninit" page struct by calling uninit_new. You
-		 * TODO: should modify the field after calling the uninit_new. */
+		/* NOTE: [VM] vm_alloc_page_with_initializer 구현 */
+		struct page *page = (struct page *)malloc(sizeof(struct page)); /* page 구조체 할당 */
+		page->writable = writable;										/* page에 쓰기 가능 여부 설정 */
 
-		/* TODO: Insert the page into the spt. */
+		switch (VM_TYPE(type)) /* vm_type에 따라 초기화 설정 분기처리 */
+		{
+		case VM_ANON:
+			uninit_new(page, upage, init, type, aux, anon_initializer);
+			break;
+		case VM_FILE:
+			uninit_new(page, upage, init, type, aux, file_backed_initializer);
+			break;
+		default: /* 예상치 못한 type이 들어온 경우 예외처리 */
+			free(page);
+			goto err;
+		}
+
+		spt_insert_page(&thread_current()->spt, page); /* 현제 프로세스의 보조 페이지 테이블에 생성한 페이지 추가 */
 	}
 err:
 	return false;
