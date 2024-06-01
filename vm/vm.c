@@ -4,6 +4,7 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 #include "lib/kernel/hash.h"
+#include "threads/mmu.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -207,8 +208,11 @@ bool vm_claim_page(void *va)
 {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
-	/* TODO: va를 위한 페이지를 얻음 */
-	/* TODO: 해당 페이지를 인자로 갖는 vm_do_claim_page 호출 */
+	/* NOTE: va를 위한 페이지를 얻음 - 의문: writable에 어떤 걸 넘겨야하지? */
+	page = vm_alloc_page(VM_UNINIT, va, true);
+	if (page == NULL)
+		return false;
+	/* NOTE: 해당 페이지를 인자로 갖는 vm_do_claim_page 호출 */
 	return vm_do_claim_page(page);
 }
 
@@ -228,8 +232,8 @@ vm_do_claim_page(struct page *page)
 	frame->page = page;
 	page->frame = frame;
 
-	/* TODO: 페이지 테이블에 페이지의 VA와 프레임의 PA를 삽입해야 한다. (페이지와 프레임의 매핑을 위함) */
-
+	/* NOTE: 페이지 테이블에 페이지의 VA와 프레임의 PA를 삽입 - 의문: rw에 뭘 넣어야 할까? */
+	pml4_set_page(thread_current()->pml4, page->va, frame->kva, true);
 	return swap_in(page, frame->kva);
 }
 
