@@ -3,6 +3,7 @@
 #include "threads/malloc.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
+#include "lib/kernel/hash.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -216,6 +217,20 @@ vm_do_claim_page(struct page *page)
 	return swap_in(page, frame->kva);
 }
 
+unsigned page_hash(const struct hash_elem *p_, void *aux UNUSED)
+{
+	const struct page *p = hash_entry(p_, struct page, hash_elem);
+	return hash_bytes(&p->va, sizeof(p->va));
+}
+
+unsigned page_less(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED)
+{
+	const struct page *a = hash_entry(a_, struct page, hash_elem);
+	const struct page *b = hash_entry(b_, struct page, hash_elem);
+
+	return a->va < b->va;
+}
+
 /**
  * @brief 보조 페이지 테이블을 초기화하는 함수
  * userprog/process.c의 initd 함수로 새로운 프로세스가 시작하거나
@@ -223,9 +238,10 @@ vm_do_claim_page(struct page *page)
  *
  * @param UNUSED
  */
-void supplemental_page_table_init(struct supplemental_page_table *spt UNUSED)
+void supplemental_page_table_init(struct supplemental_page_table *spt)
 {
-	/* TODO: 보조 페이지 테이블 초기화 구현 */
+	/* NOTE: 보조 페이지 테이블 초기화 */
+	hash_init(&spt->hash, page_hash, page_less, NULL);
 }
 
 /* Copy supplemental page table from src to dst */
