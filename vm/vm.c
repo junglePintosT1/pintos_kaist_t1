@@ -102,8 +102,15 @@ spt_find_page(struct supplemental_page_table *spt, void *va)
 bool spt_insert_page(struct supplemental_page_table *spt,
 					 struct page *page)
 {
+	/* NOTE: [VM] 보조 페이지 테이블에 페이지 구조체 삽입 */
 	int succ = false;
-	/* TODO: Fill this function. */
+	/* 보조 페이지 테이블 해시에 page의 hash_elem 삽입 */
+	/* hash_insert는 이전에 중복된 페이지가 없었을 경우 NULL을 반환한다. */
+	struct hash_elem *old = hash_insert(&spt->hash, &page->hash_elem);
+
+	/* 중복된 페이지가 없었을 경우 삽입 성공 여부를 true로 변경 */
+	if (old == NULL)
+		succ = true;
 
 	return succ;
 }
