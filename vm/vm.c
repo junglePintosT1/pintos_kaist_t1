@@ -75,10 +75,19 @@ err:
 struct page *
 spt_find_page(struct supplemental_page_table *spt, void *va)
 {
-	struct page *page = NULL;
-	/* TODO: Fill this function. */
+	struct page *page = malloc(sizeof(struct page)); /* page 구조체 동적 할당 */
+	struct hash_elem *e;
 
-	return page;
+	/* page 동적 할당 실패 시 NULL 반환 */
+	if (page == NULL)
+		return NULL;
+
+	page->va = va;								 /* 할당된 page 구조체의 가상 주소 설정 */
+	e = hash_find(&spt->hash, &page->hash_elem); /* spt의 해시 테이블에서 page의 hash_elem 찾기  */
+	free(page);									 /* page 구조체 할당 해제 */
+
+	/* va와 대응하는 page 구조체 반환 */
+	return e != NULL ? hash_entry(e, struct page, hash_elem) : NULL;
 }
 
 /**
