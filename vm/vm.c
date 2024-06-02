@@ -171,13 +171,21 @@ vm_evict_frame(void)
 static struct frame *
 vm_get_frame(void)
 {
-	struct frame *frame = NULL;
-	/* NOTE: [VM] 모든 유저 페이지를 위한 프레임은 PAL_USER을 통해 할당해야 함 */
-	frame = palloc_get_page(PAL_USER | PAL_ZERO);
+	struct frame *frame = malloc(sizeof(struct frame));
 
+	/* NOTE: [VM] 모든 유저 페이지를 위한 프레임은 PAL_USER을 통해 할당해야 함 */
+	frame->kva = palloc_get_page(PAL_USER);
+	if (frame->kva == NULL)
+	{
 	/* TODO: 페이지 할당 실패 시 swap out 구현 */
+		free(frame);
+		PANIC("todo");
+	}
+	frame->page = NULL;
+
 	ASSERT(frame != NULL);
 	ASSERT(frame->page == NULL);
+
 	return frame;
 }
 
