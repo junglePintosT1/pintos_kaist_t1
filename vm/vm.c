@@ -256,14 +256,17 @@ static bool
 vm_do_claim_page(struct page *page)
 {
 	struct frame *frame = vm_get_frame(); /* NOTE: [VM] 페이지를 할당할 프레임을 얻음 */
+	if (frame == NULL)
+		return false;
 
 	/* Set links */
 	frame->page = page;
 	page->frame = frame;
 
-	/* NOTE: 페이지 테이블에 페이지의 VA와 프레임의 PA를 삽입 */
-	pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable);
+	/* NOTE: 페이지 테이블에 페이지의 VA와 프레임의 PA를 삽입 - install_page 참고 */
+	if (pml4_get_page(thread_current()->pml4, page->va) == NULL && pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable))
 	return swap_in(page, frame->kva);
+	return false;
 }
 
 unsigned page_hash(const struct hash_elem *p_, void *aux UNUSED)
