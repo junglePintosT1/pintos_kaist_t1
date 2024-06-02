@@ -56,7 +56,9 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 	{
 		/* NOTE: [VM] vm_alloc_page_with_initializer 구현 */
 		struct page *page = (struct page *)malloc(sizeof(struct page)); /* page 구조체 할당 */
-		page->writable = writable;										/* page에 쓰기 가능 여부 설정 */
+		if (page == NULL)
+			goto err;
+		page->writable = writable; /* page에 쓰기 가능 여부 설정 */
 
 		switch (VM_TYPE(type)) /* vm_type에 따라 초기화 설정 분기처리 */
 		{
@@ -70,8 +72,13 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 			free(page);
 			goto err;
 		}
-
-		spt_insert_page(&thread_current()->spt, page); /* 현제 프로세스의 보조 페이지 테이블에 생성한 페이지 추가 */
+		/* 현재 프로세스의 보조 페이지 테이블에 생성한 페이지 추가 */
+		if (!spt_insert_page(&thread_current()->spt, page))
+		{
+			free(page);
+			goto err;
+		}
+		return true;
 	}
 err:
 	return false;
