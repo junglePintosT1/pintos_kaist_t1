@@ -778,9 +778,23 @@ install_page(void *upage, void *kpage, bool writable)
 static bool
 lazy_load_segment(struct page *page, void *aux)
 {
-	/* TODO: Load the segment from the file */
-	/* TODO: This called when the first page fault occurs on address VA. */
-	/* TODO: VA is available when calling this function. */
+	/* FIXME: 이해하기 */
+	struct page_load_info *page_load_info = (struct page_load_info *)aux;
+	struct file *file = page_load_info->file;
+	off_t offset = page_load_info->offset;
+	size_t read_bytes = page_load_info->read_bytes;
+	size_t zero_bytes = page_load_info->zero_bytes;
+
+	file_seek(page_load_info->file, page_load_info->offset);
+	if (file_read(file, page->frame->kva, read_bytes) != (off_t)read_bytes)
+	{
+		palloc_free_page(page->frame->kva);
+		return false;
+	}
+	memset(page->frame->kva + read_bytes, 0, zero_bytes);
+	memcpy(page->va, page->frame->kva, PGSIZE); /* FIXME: 왜 해줘야하지? */
+
+	return true;
 }
 
 /**
