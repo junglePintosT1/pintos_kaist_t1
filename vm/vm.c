@@ -101,8 +101,7 @@ spt_find_page(struct supplemental_page_table *spt, void *va)
 	/* page 동적 할당 실패 시 NULL 반환 */
 	if (page == NULL)
 		return NULL;
-
-	page->va = va;								 /* 할당된 page 구조체의 가상 주소 설정 */
+	page->va = pg_round_down(va);				 /* 할당된 page 구조체의 가상 주소 설정 */
 	e = hash_find(&spt->hash, &page->hash_elem); /* spt의 해시 테이블에서 page의 hash_elem 찾기  */
 	free(page);									 /* page 구조체 할당 해제 */
 
