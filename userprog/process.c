@@ -845,19 +845,37 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
  * 첫 번째 스택 페이지는 지연 로딩할 필요 없이 command line의 인자들과 함께 할당하고 초기화 할 수 있다.
  * 당신은 스택을 확인하는 방법을 제공해야 한다.
  * - vm/vm.h에서 vm_type의 보조 마커(e.g. VM_MARKER_0)를 사용할 수 있다.
+ *
+ * +---------------------+ <- USER_STACK (Initial rsp)
+ * |  Command Line Args  |   <- 프로그램이 시작될 때 바로 필요로 하는 데이터
+ * |  Environment Vars   |
+ * |  Stack Frame        |
+ * |  Local Variables    |
+ * |  ...                |
+ * +---------------------+ <- stack_bottom (USER_STACK - PGSIZE)
+ * |                     |
+ * |      Stack Page     |
+ * |      (4 KB)         |
+ * |                     |
+ * +---------------------+
+
  */
 /* Create a PAGE of stack at the USER_STACK. Return true on success. */
 static bool
 setup_stack(struct intr_frame *if_)
 {
-	bool success = false;
+	/* FIXME: 이해가 안 돼!! */
 	void *stack_bottom = (void *)(((uint8_t *)USER_STACK) - PGSIZE);
+	if (!vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, true))
+		return false;
 
-	/* TODO: Map the stack on stack_bottom and claim the page immediately.
-	 * TODO: If success, set the rsp accordingly.
-	 * TODO: You should mark the page is stack. */
-	/* TODO: Your code goes here */
+	if (!vm_claim_page(stack_bottom))
+	{
+		vm_dealloc_page(stack_bottom);
+		return false;
+	}
 
-	return success;
+	if_->rsp = USER_STACK;
+	return true;
 }
 #endif /* VM */
