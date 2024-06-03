@@ -58,7 +58,6 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 		struct page *page = (struct page *)malloc(sizeof(struct page)); /* page 구조체 할당 */
 		if (page == NULL)
 			goto err;
-		page->writable = writable; /* page에 쓰기 가능 여부 설정 */
 
 		switch (VM_TYPE(type)) /* vm_type에 따라 초기화 설정 분기처리 */
 		{
@@ -72,6 +71,8 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 			free(page);
 			goto err;
 		}
+
+		page->writable = writable; /* page에 쓰기 가능 여부 설정 */
 		/* 현재 프로세스의 보조 페이지 테이블에 생성한 페이지 추가 */
 		if (!spt_insert_page(&thread_current()->spt, page))
 		{
@@ -168,7 +169,7 @@ vm_get_frame(void)
 	frame->kva = palloc_get_page(PAL_USER);
 	if (frame->kva == NULL)
 	{
-	/* TODO: 페이지 할당 실패 시 swap out 구현 */
+		/* TODO: 페이지 할당 실패 시 swap out 구현 */
 		free(frame);
 		PANIC("todo");
 	}
@@ -213,7 +214,7 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
 
 	if (not_present)
 	{
-	page = spt_find_page(spt, addr);
+		page = spt_find_page(spt, addr);
 		if (page == NULL)
 			return false;
 		if (write == 1 && page->writable == 0)
@@ -269,7 +270,7 @@ vm_do_claim_page(struct page *page)
 
 	/* NOTE: 페이지 테이블에 페이지의 VA와 프레임의 PA를 삽입 - install_page 참고 */
 	if (pml4_get_page(thread_current()->pml4, page->va) == NULL && pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable))
-	return swap_in(page, frame->kva);
+		return swap_in(page, frame->kva);
 	return false;
 }
 
