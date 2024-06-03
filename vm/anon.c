@@ -21,7 +21,7 @@ static const struct page_operations anon_ops = {
 void vm_anon_init(void)
 {
 	/**
-	 * @brief GITBOOk
+	 * @brief GITBOOK
 	 * 이 함수에서 당신은 익명 페이지에 관련된 어떤 것이든 설정할 수 있다.
 	 */
 	/* TODO: Set up the swap_disk. */

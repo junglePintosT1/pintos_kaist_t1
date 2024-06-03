@@ -770,7 +770,7 @@ install_page(void *upage, void *kpage, bool writable)
  * upper block. */
 
 /**
- * @brief GITBOOD
+ * @brief GITBOOK
  * TODO: load_segment와 lazy_load_segment 함수를 구현하여 실행 파일에서 세그먼트를 로드하는 작업을 수행하라.
  * 모든 페이지는 커널이 페이지 폴트를 인터셉트할 때만 로드되도록 지연 로딩되어야 한다.
  */
