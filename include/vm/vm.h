@@ -56,7 +56,6 @@ struct page
 	/* NOTE: [VM] 추가적인 정보 추가 */
 	struct hash_elem hash_elem; /* SPT에 넣을 hash_elem */
 	bool writable;				/* 쓰기 가능 여부 */
-	bool is_loaded;				/* 메모리 적재 여부 */
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
