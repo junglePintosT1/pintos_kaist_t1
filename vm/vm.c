@@ -270,7 +270,7 @@ unsigned page_hash(const struct hash_elem *p_, void *aux UNUSED)
 	return hash_bytes(&p->va, sizeof(p->va));
 }
 
-unsigned page_less(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED)
+bool page_less(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED)
 {
 	const struct page *a = hash_entry(a_, struct page, hash_elem);
 	const struct page *b = hash_entry(b_, struct page, hash_elem);
