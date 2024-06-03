@@ -785,14 +785,13 @@ lazy_load_segment(struct page *page, void *aux)
 	size_t read_bytes = page_load_info->read_bytes;
 	size_t zero_bytes = page_load_info->zero_bytes;
 
-	file_seek(page_load_info->file, page_load_info->offset);
+	file_seek(file, offset);
 	if (file_read(file, page->frame->kva, read_bytes) != (off_t)read_bytes)
 	{
 		palloc_free_page(page->frame->kva);
 		return false;
 	}
 	memset(page->frame->kva + read_bytes, 0, zero_bytes);
-	memcpy(page->va, page->frame->kva, PGSIZE); /* FIXME: 왜 해줘야하지? */
 
 	return true;
 }
