@@ -305,6 +305,9 @@ void supplemental_page_table_init(struct supplemental_page_table *spt)
 bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 								  struct supplemental_page_table *src UNUSED)
 {
+	/* TODO: [VM] src부터 dst까지 spt 복사 구현 */
+	/* TODO: spt를 순회하면서 정확한 복사본을 만들어라. */
+	/* TODO: uninit 페이지를 할당하고 이 함수를 바로 요청할 필요가 있을 것이다. */
 }
 
 /* Free the resource hold by the supplemental page table */
@@ -312,4 +315,11 @@ void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED)
 {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+	/**
+	 * @brief GITBOOK
+	 * spt에 의해 유지되던 모든 자원들을 free한다.
+	 * process_exit()에서 호출된다.
+	 * 페이지 엔트리를 순회하면서 테이블의 페이지에 destroy(page)를 호출해야 한다.
+	 * 실제 페이지 테이블(pml4)와 물리 주소(palloc된 메모리)에 대해선 고려하지 않아도 된다. (호출자가 그것들을 정리할 것이다.)
+	 */
 }
