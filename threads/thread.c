@@ -13,6 +13,7 @@
 #include "intrinsic.h"
 #include "threads/fixed_point.h"
 #include "threads/malloc.h"
+#include "hash.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif

@@ -119,6 +119,12 @@ resolve_area_info (struct area *base_mem, struct area *ext_mem) {
  * Basically, give half of memory to kernel, half to user.
  * We push base_mem portion to the kernel as much as possible.
  */
+
+/* 풀을 채웁니다.
+ * 모든 페이지는 이 할당자에 의해 관리되며 코드 페이지도 포함됩니다.
+ * 기본적으로 메모리의 절반은 커널에, 절반은 사용자에게 줍니다.
+ * 우리는 가능한 한 커널에 base_mempart를 푸쉬합니다.
+ */
 static void
 populate_pools (struct area *base_mem, struct area *ext_mem) {
 	extern char _end;
@@ -137,6 +143,7 @@ populate_pools (struct area *base_mem, struct area *ext_mem) {
 	struct multiboot_info *mb_info = ptov (MULTIBOOT_INFO);
 	struct e820_entry *entries = ptov (mb_info->mmap_base);
 
+	// 메모리 맵 엔트리를 순회하며 메모리 풀을 설정
 	uint32_t i;
 	for (i = 0; i < mb_info->mmap_len / sizeof (struct e820_entry); i++) {
 		struct e820_entry *entry = &entries[i];
@@ -235,6 +242,7 @@ split:
 }
 
 /* Initializes the page allocator and get the memory size */
+/* page allocator를 초기화 하고 시스템 메모리 크기를 가져온다. */
 uint64_t
 palloc_init (void) {
   /* End of the kernel as recorded by the linker.
@@ -244,12 +252,20 @@ palloc_init (void) {
 	struct area ext_mem = { .size = 0 };
 
 	resolve_area_info (&base_mem, &ext_mem);
+
+	/* 기본 메모리와 확장 메모리의 시작 주소, 끝 주소, 사용 가능한 크기를 출력 */
 	printf ("Pintos booting with: \n");
 	printf ("\tbase_mem: 0x%llx ~ 0x%llx (Usable: %'llu kB)\n",
 		  base_mem.start, base_mem.end, base_mem.size / 1024);
 	printf ("\text_mem: 0x%llx ~ 0x%llx (Usable: %'llu kB)\n",
 		  ext_mem.start, ext_mem.end, ext_mem.size / 1024);
+
+	/* populate_pools 함수는 base_mem과 ext_mem 구조체를 
+		 사용하여 페이지 풀(page pool)을 채움.
+		 페이지 풀은 메모리 할당을 관리하기 위한 데이터 구조. */
 	populate_pools (&base_mem, &ext_mem);
+
+	/* 확장 메모리의 끝 주소를 반환 */
 	return ext_mem.end;
 }
 
