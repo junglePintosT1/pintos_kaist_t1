@@ -124,6 +124,9 @@ void syscall_handler(struct intr_frame *f)
 		close(f->R.rdi);
 		break;
 	}
+#ifdef VM
+	thread_current()->user_rsp = f->rsp;
+#endif
 }
 
 /* ---------- SYSCALL ---------- */
@@ -246,6 +249,12 @@ int filesize(int fd)
 int read(int fd, void *buffer, unsigned size)
 {
 	check_address(buffer);
+#ifdef VM
+	// NOTE: [VM] buffer가 들어있는 프레임이 쓰기 가능한지 확인
+	struct page *page = spt_find_page(&thread_current()->spt, buffer);
+	if (page == NULL || !page->writable)
+		exit(-1);
+#endif
 
 	/* 파일에 동시 접근이 일어날 수 있으므로 Lock 사용 */
 	lock_acquire(&filesys_lock);
