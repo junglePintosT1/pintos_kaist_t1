@@ -5,6 +5,7 @@
 #include "vm/inspect.h"
 #include "lib/kernel/hash.h"
 #include "threads/mmu.h"
+#include "include/userprog/syscall.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -184,8 +185,28 @@ vm_get_frame(void)
 
 /* Growing the stack. */
 static void
-vm_stack_growth(void *addr UNUSED)
+vm_stack_growth(void *addr)
 {
+	/** TODO: [VM] 스택 증가 함수 구현
+	 * - 하나 이상의 anonymous 페이지를 할당하여 스택 크기를 늘림
+	 * - 스택의 크기가 증가함에 따라, `addr`은 faulted 주소에서 유효한 주소가 된다.
+	 * - 페이지를 할당할 때는 주소를 페이지 경계로 내림해야 한다.
+	 * - 스택 크기 최대 1MB로 제한해야 한다.
+	 */
+	addr = pg_round_down(addr);
+
+	/* 스택 최대 크기 넘음 */
+	if (addr > USER_STACK - MAX_STACK_SIZE)
+		exit(-1);
+
+	if (!vm_alloc_page(VM_ANON | VM_MARKER_0, addr, true))
+		exit(-1);
+
+	if (!vm_claim_page(addr))
+	{
+		vm_dealloc_page(addr);
+		exit(-1);
+	}
 }
 
 /* Handle the fault on write_protected page */
@@ -201,10 +222,10 @@ vm_handle_wp(struct page *page UNUSED)
  * vm_try_handle_fault 함수를 수정하여 spt_find_page를 통해 페이지 폴트 주소에 해당하는 페이지 구조체를 찾아야 한다.
  */
 /* Return true on success */
-bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
-						 bool user UNUSED, bool write UNUSED, bool not_present UNUSED)
+bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr,
+						 bool user UNUSED, bool write, bool not_present)
 {
-	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
+	struct supplemental_page_table *spt = &thread_current()->spt;
 	struct page *page = NULL;
 
 	if (addr == NULL)
@@ -213,16 +234,24 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
 	if (is_kernel_vaddr(addr))
 		return false;
 
-	if (not_present)
+	if (!not_present)
+		return false;
+
+	/* 스택에 접근하는 경우 */
+	if (f->rsp - 8 == addr)
 	{
-		page = spt_find_page(spt, addr);
-		if (page == NULL)
-			return false;
-		if (write == 1 && page->writable == 0)
-			return false;
-		return vm_do_claim_page(page);
+		vm_stack_growth(addr);
+		return true;
 	}
-	return false;
+
+	page = spt_find_page(spt, addr);
+	if (page == NULL)
+		return false;
+
+	if (write == 1 && page->writable == 0)
+		return false;
+
+	return vm_do_claim_page(page);
 }
 
 /* Free the page.
@@ -275,12 +304,28 @@ vm_do_claim_page(struct page *page)
 	return false;
 }
 
+/**
+ * @brief
+ *
+ * @param p_
+ * @param UNUSED
+ * @return unsigned
+ */
 unsigned page_hash(const struct hash_elem *p_, void *aux UNUSED)
 {
 	const struct page *p = hash_entry(p_, struct page, hash_elem);
 	return hash_bytes(&p->va, sizeof(p->va));
 }
 
+/**
+ * @brief
+ *
+ * @param a_
+ * @param b_
+ * @param UNUSED
+ * @return true
+ * @return false
+ */
 bool page_less(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED)
 {
 	const struct page *a = hash_entry(a_, struct page, hash_elem);

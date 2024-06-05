@@ -69,6 +69,5 @@ uninit_destroy(struct page *page)
 	 * TODO: If you don't have anything to do, just return. */
 	if (uninit->type == VM_ANON)
 	{
-		free(uninit->aux);
 	}
 }

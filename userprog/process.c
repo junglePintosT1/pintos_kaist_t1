@@ -877,17 +877,21 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack(struct intr_frame *if_)
 {
-	/* FIXME: 이해가 안 돼!! */
+	/* 스택은 아래로 확장되기 때문에 USER_STACK보다 PGSIZE만큼 낮은 주소에 페이지를 할당해야 한다. */
 	void *stack_bottom = (void *)(((uint8_t *)USER_STACK) - PGSIZE);
+
+	/* anonymous 페이지 할당 받기, VM_MARKER_0는 이 페이지가 스택임을 구분하기 위한 마커 */
 	if (!vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, true))
 		return false;
 
+	/* 할당 받은 페이지를 프레임과 매핑 */
 	if (!vm_claim_page(stack_bottom))
 	{
 		vm_dealloc_page(stack_bottom);
 		return false;
 	}
 
+	/* 스택 포인터를 USER_STACK으로 초기화 */
 	if_->rsp = USER_STACK;
 	return true;
 }
