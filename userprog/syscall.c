@@ -12,7 +12,6 @@
 #include "filesys/filesys.h"
 #include "lib/string.h"
 #include "lib/syscall-nr.h"
-#include "lib/user/syscall.h"
 #include "userprog/process.h"
 #include "devices/input.h"
 #include "threads/palloc.h"

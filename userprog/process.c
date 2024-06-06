@@ -778,8 +778,8 @@ install_page(void *upage, void *kpage, bool writable)
 static bool
 lazy_load_segment(struct page *page, void *aux)
 {
-	/* FIXME: 이해하기 */
 	struct page_load_info *page_load_info = (struct page_load_info *)aux;
+
 	struct file *file = page_load_info->file;
 	off_t offset = page_load_info->offset;
 	size_t read_bytes = page_load_info->read_bytes;
