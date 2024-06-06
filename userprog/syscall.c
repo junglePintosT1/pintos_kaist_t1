@@ -78,6 +78,9 @@ void syscall_handler(struct intr_frame *f)
 {
 	// NOTE: [2.X] Your implementation goes here.
 	uint64_t syscall_num = f->R.rax;
+#ifdef VM
+	thread_current()->user_rsp = f->rsp;
+#endif
 
 	switch (syscall_num)
 	{
@@ -124,9 +127,6 @@ void syscall_handler(struct intr_frame *f)
 		close(f->R.rdi);
 		break;
 	}
-#ifdef VM
-	thread_current()->user_rsp = f->rsp;
-#endif
 }
 
 /* ---------- SYSCALL ---------- */
@@ -252,10 +252,9 @@ int read(int fd, void *buffer, unsigned size)
 #ifdef VM
 	// NOTE: [VM] buffer가 들어있는 프레임이 쓰기 가능한지 확인
 	struct page *page = spt_find_page(&thread_current()->spt, buffer);
-	if (page == NULL || !page->writable)
+	if (page && !page->writable)
 		exit(-1);
 #endif
-
 	/* 파일에 동시 접근이 일어날 수 있으므로 Lock 사용 */
 	lock_acquire(&filesys_lock);
 	/* 파일 디스크립터를 이용하여 파일 객체 검색 */
@@ -335,8 +334,10 @@ unsigned tell(int fd)
 /* NOTE: [2.4] close() 시스템 콜 구현 */
 void close(int fd)
 {
+	lock_acquire(&filesys_lock);
 	/* 해당 파일 디스크립터에 해당하는 파일을 닫음 */
 	process_close_file(fd);
+	lock_release(&filesys_lock);
 }
 
 /* ---------- UTIL ---------- */
