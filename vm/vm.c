@@ -5,7 +5,7 @@
 #include "vm/inspect.h"
 #include "lib/kernel/hash.h"
 #include "threads/mmu.h"
-#include "include/userprog/syscall.h"
+#include "userprog/syscall.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -193,20 +193,7 @@ vm_stack_growth(void *addr)
 	 * - 페이지를 할당할 때는 주소를 페이지 경계로 내림해야 한다.
 	 * - 스택 크기 최대 1MB로 제한해야 한다.
 	 */
-	addr = pg_round_down(addr);
-
-	/* 스택 최대 크기 넘음 */
-	if (addr > USER_STACK - MAX_STACK_SIZE)
-		exit(-1);
-
-	if (!vm_alloc_page(VM_ANON | VM_MARKER_0, addr, true))
-		exit(-1);
-
-	if (!vm_claim_page(addr))
-	{
-		vm_dealloc_page(addr);
-		exit(-1);
-	}
+	vm_alloc_page(VM_ANON | VM_MARKER_0, pg_round_down(addr), true);
 }
 
 /* Handle the fault on write_protected page */
@@ -237,12 +224,15 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr,
 	if (!not_present)
 		return false;
 
+	void *rsp = f->rsp;
+	if (!user)
+		rsp = thread_current()->user_rsp;
 	/* 스택에 접근하는 경우 */
-	if (f->rsp - 8 == addr)
-	{
+	// 스택 확장으로 처리할 수 있는 폴트인 경우, vm_stack_growth를 호출한다.
+	if (USER_STACK - MAX_STACK_SIZE <= rsp - 8 && rsp - 8 == addr && addr <= USER_STACK)
 		vm_stack_growth(addr);
-		return true;
-	}
+	else if (USER_STACK - MAX_STACK_SIZE <= rsp && rsp <= addr && addr <= USER_STACK)
+		vm_stack_growth(addr);
 
 	page = spt_find_page(spt, addr);
 	if (page == NULL)
