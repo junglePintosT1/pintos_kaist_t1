@@ -54,7 +54,17 @@ file_backed_swap_out(struct page *page)
 static void
 file_backed_destroy(struct page *page)
 {
-	struct file_page *file_page UNUSED = &page->file;
+	struct file_page *file_page = &page->file;
+	uint64_t *pml4 = thread_current()->pml4;
+	void *upage = page->va;
+
+	if (pml4_is_dirty(pml4, page->va))
+	{
+		file_seek(file_page->file, file_page->offset);
+		file_write(file_page->file, page->frame->kva, file_page->length);
+		pml4_set_dirty(pml4, upage, false);
+	}
+	pml4_clear_page(pml4, upage);
 }
 
 static bool
