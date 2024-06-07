@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "threads/vaddr.h"
 #include "threads/palloc.h" // palloc_get_page 함수를 사용하기 위한 헤더 파일
 #include "threads/init.h" // PANIC 매크로를 사용하기 위한 헤더 파일
@@ -75,7 +76,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 			uninit_new(new_page, upage, init, type, aux, file_backed_initializer);
 			break;
 	}
-	
+
 	// uninit_new 내부에 writable 관련 항목이 없기 때문에 호출 후에 수정
 	new_page -> writable = writable;
 
@@ -98,9 +99,9 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = (struct page *)malloc(sizeof(struct page));
 
 	page -> va = pg_round_down(va);
-
-	struct hash_elem *e = hash_find(&spt -> vm, &page -> elem);
 	
+	struct hash_elem *e = hash_find(&spt -> vm, &page -> elem);
+
 	free(page);
 
 	return e != NULL ? hash_entry(e, struct page, elem) : NULL;
@@ -240,9 +241,10 @@ vm_do_claim_page (struct page *page) {
 	struct thread *t = thread_current();
 	/* MMU를 세팅해야하는데, 이는 가상 주소와 물리 주소를 매핑한 정보를 페이지 테이블에 추가해야 한다는 것을 의미합니다. */
 	/* 해당 주소에 페이지를 매핑합니다. */
-	pml4_set_page(t->pml4, page -> va, frame -> kva, page -> writable);
+	if (pml4_get_page(t->pml4, page -> va) == NULL && pml4_set_page(t->pml4, page -> va, frame -> kva, page -> writable))
+		return swap_in (page, frame->kva);
 
-	return swap_in (page, frame->kva);
+	return false;
 }
 
 /* Initialize new supplemental page table */
@@ -255,14 +257,78 @@ void
 /* Copy supplemental page table from src to dst */
 bool
 supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
-		struct supplemental_page_table *src UNUSED) {
+	struct supplemental_page_table *src UNUSED) {	
+
+	// src의 해시 테이블을 순회하기 위한 구조체 선언
+	struct hash_iterator i;
+
+	// hash의 첫번째 요소를 hash_iterator에 설정
+	hash_first (&i, &src -> vm);
+
+	// hash table 내부를 순회 
+	while (hash_next (&i))
+   {
+   	struct page *curr_page = hash_entry(hash_cur (&i), struct page, elem);
+		if ( curr_page == NULL )
+			return false;
+
+		enum vm_type type = curr_page -> operations -> type;
+		void *upage = curr_page -> va;
+		bool writable = curr_page -> writable;
+
+		// uninit 타입 페이지는 spt에 페이지만 로드 되어있을 뿐, 관련된 프레임과는 매핑되어 있지 않은 상태
+		// src의 spt entry의 값을 통해 새로운 페이지를 생성
+		if ( type == VM_UNINIT ) {
+			vm_alloc_page_with_initializer(VM_ANON, upage, writable, curr_page -> uninit.init, curr_page -> uninit.aux);
+
+			// uninit 페이지가 생성되었다면 다음 테이블 엔트리 처리
+			continue;
+		}
+
+		// anonymous, file_mapped 타입인 경우 uninit 상태에서 pagefault로 컨텐츠가 로드되었거나, 직접 로드된 상태의 페이지를 의미
+		// 해당 페이지는 lazy loading 없이 직접 페이지를 로드
+		if ( !vm_alloc_page_with_initializer(type, upage, writable, NULL, NULL) )
+			return false;
+
+
+		// 페이지 로드 후 프레임과 매핑 ( 매핑만 )
+		if ( !vm_claim_page(upage) )
+			return false;
+
+
+		// dst 해시 테이블 내부에 페이지가 들어있는지 확인
+		struct page *new_p = spt_find_page(dst, upage);
+
+		if (new_p == NULL || new_p->frame == NULL) {
+					return false;
+		}
+
+		// 프레임 내부에 정보를 페이지 한 개만큼 복사
+		memcpy(new_p -> frame -> kva, curr_page -> frame -> kva, PGSIZE);
+   }
+
+		return true;
+}
+
+void hash_page_destroy (struct hash_elem *e, void *aux UNUSED) {
+
+	struct page *page = hash_entry(e, struct page, elem);
+	destroy(page);
+	free(page);	
+
 }
 
 /* Free the resource hold by the supplemental page table */
 void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
-	/* TODO: Destroy all the supplemental_page_table hold by thread and
-	 * TODO: writeback all the modified contents to the storage. */
+	/* Destroy all the supplemental_page_table hold by thread
+	 * -> 스레드가 가지고 있는 supplemental page table을 모두 destroy 한다.
+	 * TODO: writeback all the modified contents to the storage.
+	 * -> 수정된 컨텐츠에 대해서 모두 기록한다.
+	 * */
+	hash_clear(&spt -> vm, hash_page_destroy);
+
+	// hash_destroy()
 }
 
 uint64_t supplement_hash_func ( const struct hash_elem *e, void *aux) {
