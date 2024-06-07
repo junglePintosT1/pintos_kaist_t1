@@ -12,6 +12,7 @@
 #include "threads/palloc.h" // palloc_get_page 함수를 사용하기 위한 헤더 파일
 #include "threads/init.h" // PANIC 매크로를 사용하기 위한 헤더 파일
 #include "threads/vaddr.h"
+#include "threads/thread.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -163,6 +164,8 @@ vm_get_frame (void) {
 /* Growing the stack. */
 static void
 vm_stack_growth (void *addr UNUSED) {
+  void *ordered_addr = pg_round_down(addr);
+	vm_alloc_page(VM_ANON | VM_MARKER_0, ordered_addr, 1);
 }
 
 /* Handle the fault on write_protected page */
@@ -179,27 +182,38 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		return false;
 
 	/* Page Fault 원인을 검사 */
-	if ( !not_present )
-		return false;
-	
-	/* Supplemetal Page Table 참조 */
-	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
+	if ( not_present ) {
+		struct thread *t = thread_current();
 
-	/* Page Fault 대상 page 컨텐츠 load */
-	struct page *page = spt_find_page(spt, addr);
-	
-	if (page == NULL) {
-		return false;
+		void * rsp = !user ? t -> utok_rsp : f -> rsp;
+
+		// 스택 확장 관련 Stack Growth 처리
+		if (addr <= USER_STACK && rsp - 8 >= USER_STACK - MAX_STACK_SIZE && addr == rsp - 8) {
+			vm_stack_growth(addr);
+		}
+		else if ( rsp >= USER_STACK - MAX_STACK_SIZE && addr >= rsp && addr <= USER_STACK ) {
+			vm_stack_growth(addr);
+		} 
+
+
+		/* Supplemetal Page Table 참조 */
+		struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
+
+		/* Page Fault 대상 page 컨텐츠 load */
+		struct page *page = spt_find_page(spt, addr);
+		
+		if (page == NULL)
+			return false;
+		
+		/* write 불가능한 페이지에 접근한 경우 */
+		if (write == 1 && page -> writable == 0)
+			return false;
+
+		/* 페이지 테이블 갱신 */
+		return vm_do_claim_page (page);
 	}
-	
 
-	/* write 불가능한 페이지에 접근한 경우 */
-	if (write == 1 && page -> writable == 0) {
-		return false;
-	}
-
-	/* 페이지 테이블 갱신 */
-	return vm_do_claim_page (page);
+	return false;
 }
 
 /* Free the page.

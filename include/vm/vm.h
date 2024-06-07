@@ -32,6 +32,8 @@ enum vm_type {
 #include "filesys/page_cache.h"
 #endif
 
+#define MAX_STACK_SIZE (1 << 20) // 1MB
+
 struct page_operations;
 struct thread;
 
