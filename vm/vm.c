@@ -356,7 +356,7 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 		{
 			vm_initializer *init = src_page->uninit.init;
 			void *aux = src_page->uninit.aux;
-			vm_alloc_page_with_initializer(VM_ANON, upage, writable, init, aux);
+			vm_alloc_page_with_initializer(page_get_type(src_page), upage, writable, init, aux);
 			continue;
 		}
 
@@ -378,8 +378,7 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 void hash_action_destroy(struct hash_elem *e, void *aux)
 {
 	struct page *page = hash_entry(e, struct page, hash_elem);
-	destroy(page);
-	free(page); /* 🚨 page에 대한 free를 여기서 하는 이유가 뭘까??? */
+	vm_dealloc_page(page);
 }
 
 /* Free the resource hold by the supplemental page table */
