@@ -39,9 +39,13 @@ void syscall_handler(struct intr_frame *);
 /* process */
 void halt(void);
 void exit(int status);
-pid_t exec(const char *cmd_line);
 pid_t sys_fork(const char *thread_name, struct intr_frame *f);
+pid_t exec(const char *cmd_line);
+
+/* file */
 int wait(pid_t pid);
+bool create(const char *file, unsigned initial_size);
+bool remove(const char *file);
 int open(const char *file_name);
 int filesize(int fd);
 int read(int fd, void *buffer, unsigned size);
@@ -50,9 +54,9 @@ void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
 
-/* file */
-bool create(const char *file, unsigned initial_size);
-bool remove(const char *file);
+/* vm */
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset);
+void munmap(void *addr);
 
 void check_address(void *addr);
 
@@ -124,6 +128,12 @@ void syscall_handler(struct intr_frame *f)
 		break;
 	case SYS_CLOSE: // 13
 		close(f->R.rdi);
+		break;
+	case SYS_MMAP: // 14
+		mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+		break;
+	case SYS_MUNMAP: // 15
+		munmap(f->R.rdi);
 		break;
 	}
 }
@@ -337,6 +347,21 @@ void close(int fd)
 	/* 해당 파일 디스크립터에 해당하는 파일을 닫음 */
 	process_close_file(fd);
 	lock_release(&filesys_lock);
+}
+
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset)
+{
+	check_address(addr);
+	struct file *file = process_get_file(fd);
+	if (file == NULL)
+		return;
+	do_mmap(addr, length, writable, file, offset);
+}
+
+void munmap(void *addr)
+{
+	check_address(addr);
+	do_munmap(addr);
 }
 
 /* ---------- UTIL ---------- */
