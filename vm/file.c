@@ -90,25 +90,10 @@ do_mmap(void *addr, size_t length, int writable,
 	 * 파일 길이가 PGSIZE의 배수가 아닌 경우, 마지막 매핑된 페이지의 일부 바이트는 0으로 채워진다.
 	 * 페이지가 디스크에 다시 쓰여질 때 0으로 채워진 부분은 폐기해야 한다.
 	 *
-	 * TODO: mmap 호출이 실패하는 경우
-	 * 1. fd가 열린 파일의 크기가 0바이트인 경우
-	 * 2. addr이 페이지 정렬이 되지 않은 경우
-	 * 3. 매핑된 페이지 범위가 스택이나 실행 파일 로드 시 매핑된 페이지와 겹치는 경우
+	 *
 	 */
 
 	/* FIXME: anonymous랑 file_backed랑 어떤 부분에서 다른 처리를 해줘야 하는걸까? */
-
-	/* 예외처리 1: 파일의 크기가 0바이트인 경우 */
-	if (file_length(file) <= 0)
-		return;
-	/* 예외처리 2: addr이 페이지 정렬이 되지 않은 경우 */
-	/* FIXME: 🚨 do_mmap에서 페이지 정렬을 시켜줘야 하는건가? 아니면 정렬 안 된 값 들어오면 틀렸다고 해야하나? */
-	if (pg_round_down(addr) != addr)
-		return;
-
-	/* 예외처리 3-1: 매핑된 페이지 범위가 스택과 겹치는 경우 */
-	if (USER_STACK - MAX_STACK_SIZE <= addr)
-		return;
 
 	while (length > 0)
 	{

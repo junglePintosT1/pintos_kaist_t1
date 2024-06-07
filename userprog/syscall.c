@@ -351,10 +351,27 @@ void close(int fd)
 
 void *mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 {
+	/**
+	 * TODO: mmap 호출이 실패하는 경우
+	 * 1. fd가 열린 파일의 크기가 0바이트인 경우
+	 * 2. addr이 페이지 정렬이 되지 않은 경우
+	 * 3. 매핑된 페이지 범위가 스택이나 실행 파일 로드 시 매핑된 페이지와 겹치는 경우
+	 */
 	check_address(addr);
-	struct file *file = process_get_file(fd);
-	if (file == NULL)
+
+	if (addr != pg_round_down(addr) || offset != pg_round_down(offset))
 		return;
+	if (is_kernel_vaddr(addr + length))
+		return;
+	if (spt_find_page(&thread_current()->spt, addr))
+		return;
+
+	struct file *file = process_get_file(fd);
+	if (!file)
+		return;
+	if (file_length(file) <= 0 || length <= 0)
+		return;
+
 	do_mmap(addr, length, writable, file, offset);
 }
 
