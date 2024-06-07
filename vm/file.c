@@ -68,7 +68,7 @@ file_backed_destroy(struct page *page)
 }
 
 static bool
-lazy_load_file(struct page *page, void *aux)
+lazy_load_segment(struct page *page, void *aux)
 {
 	struct page_load_info *page_load_info = (struct page_load_info *)aux;
 
@@ -117,7 +117,7 @@ do_mmap(void *addr, size_t length, int writable,
 		page_load_info->zero_bytes = page_zero_bytes;
 
 		/* 예외처리 3-2 : 매핑된 페이지 범위가 실행 파일 로드 시 매핑된 페이지와 겹치는 경우 */
-		if (!vm_alloc_page_with_initializer(VM_FILE, addr, writable, lazy_load_file, (void *)page_load_info))
+		if (!vm_alloc_page_with_initializer(VM_FILE, addr, writable, lazy_load_segment, (void *)page_load_info))
 		{
 			free(page_load_info);
 			return false;
