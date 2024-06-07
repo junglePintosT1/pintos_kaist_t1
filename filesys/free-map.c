@@ -44,7 +44,7 @@ free_map_release (disk_sector_t sector, size_t cnt) {
 	bitmap_write (free_map, free_map_file);
 }
 
-/* Opens the free map file and reads it from disk. */
+/* 빈 맵 파일을 열고 디스크에서 읽습니다.. */
 void
 free_map_open (void) {
 	free_map_file = file_open (inode_open (FREE_MAP_SECTOR));

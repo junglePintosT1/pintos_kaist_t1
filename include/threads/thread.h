@@ -124,11 +124,6 @@ struct thread
 
 	/* NOTE: [2.5] fork를 위한 if 구조체 */
 	struct intr_frame parent_if;
-
-#ifdef USERPROG
-	/* Owned by userprog/process.c. */
-	uint64_t *pml4; /* Page map level 4 */
-	/* NOTE: [2.4] 파일 디스크립터 테이블 추가 */
 	/* 파일 디스크립터 테이블 */
 	struct file **fdt;
 	/* 부모 프로세스의 디스크립터 */
@@ -143,6 +138,12 @@ struct thread
 	struct semaphore load_sema;
 	/* wait 세마포어 */
 	struct semaphore wait_sema;
+	
+#ifdef USERPROG
+	/* Owned by userprog/process.c. */
+	uint64_t *pml4; /* Page map level 4 */
+	/* NOTE: [2.4] 파일 디스크립터 테이블 추가 */
+
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */

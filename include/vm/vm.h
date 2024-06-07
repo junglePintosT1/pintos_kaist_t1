@@ -4,29 +4,34 @@
 #include "threads/palloc.h"
 
 enum vm_type {
-	/* page not initialized */
+	/* 페이지가 초기화되지 않음 */
 	VM_UNINIT = 0,
-	/* page not related to the file, aka anonymous page */
+	/* 파일과 관련이 없는 페이지, 즉 익명 페이지 */
 	VM_ANON = 1,
-	/* page that realated to the file */
+	/* 파일과 관련된 페이지 */
 	VM_FILE = 2,
-	/* page that hold the page cache, for project 4 */
+	/* 페이지 캐시를 포함하는 페이지, 프로젝트 4용 */
 	VM_PAGE_CACHE = 3,
+	
+	/* 상태를 저장하기 위한 비트 플래그들 */
 
-	/* Bit flags to store state */
-
-	/* Auxillary bit flag marker for store information. You can add more
-	 * markers, until the value is fit in the int. */
-	VM_MARKER_0 = (1 << 3),
+	/* 저장 정보를 위한 보조 비트 플래그 마커입니다. 
+	 * 더 많은 마커를 추가할 수 있으며, 값이 int에 맞을 때까지 가능합니다. */
+	VM_MARKER_0 = (1 << 3), /* PDG 스택마커로 채용 */
 	VM_MARKER_1 = (1 << 4),
 
-	/* DO NOT EXCEED THIS VALUE. */
+	/* 이 값을 초과하지 마십시오. */
 	VM_MARKER_END = (1 << 31),
 };
 
 #include "vm/uninit.h"
 #include "vm/anon.h"
 #include "vm/file.h"
+/* PDG 해시 구조 사용을 위해 추가 */
+#include "lib/kernel/hash.h"
+#include "include/threads/synch.h"
+#include "include/threads/mmu.h"
+
 #ifdef EFILESYS
 #include "filesys/page_cache.h"
 #endif
@@ -36,19 +41,38 @@ struct thread;
 
 #define VM_TYPE(type) ((type) & 7)
 
-/* The representation of "page".
- * This is kind of "parent class", which has four "child class"es, which are
- * uninit_page, file_page, anon_page, and page cache (project4).
- * DO NOT REMOVE/MODIFY PREDEFINED MEMBER OF THIS STRUCTURE. */
+/* "페이지"의 표현.
+ * 이는 네 가지 "자식 클래스"를 갖는 "부모 클래스"와 같은 것입니다.
+ * 이 네 가지는 uninit_page, file_page, anon_page, 및 페이지 캐시(프로젝트 4)입니다.
+ * 이 구조체의 사전 정의된 멤버를 제거/수정하지 마십시오. */
 struct page {
+	/* 
+	 * 해당 구조체는 페이지 테이블 엔트리(pml4 엔트리)의 
+	 * 셋팅을 위한 구조체 입니다. 가상메모리엔트리 VME
+	*/
 	const struct page_operations *operations;
-	void *va;              /* Address in terms of user space */
-	struct frame *frame;   /* Back reference for frame */
+	void *va;              /* 사용자 공간의 주소 + 페이지 번호로 사용 */
+	struct frame *frame;   /* 프레임에 대한 역참조, 프레임 테이블 대용 */
+	/* 구현 사항 */
+	struct hash_elem hash_elem;	/* PDG 해시 테이블 용 엘리먼트 추가 */	
+	bool writable;				/* 쓰기 가능 여부 */
+	bool is_loaded;				/* 물리메모리의 탑재 여부를 알려주는 플래그 */
+	struct file* mepped_file;	/* 가상주소와 맵핑된 파일 */
+	/* PDG 쓰기여부 추가 */
+	size_t offset;		/* 읽어야 할 파일 오프셋 */
+	size_t read_bytes;	/* 가상페이지에 쓰여져 있는 데이터 크기 */
+	size_t zero_bytes;	/* 0 셋팅 데이터 */
+	size_t swap_slot;	/* 스왑 슬롯 */
+	struct list_elem mmap_elem; /* 매핑 엘리먼트 */
 
-	/* Your implementation */
+	/* 유형별 데이터는 union에 바인딩됩니다.
+	 * 각 함수는 현재 union을 자동으로 감지합니다. */
 
-	/* Per-type data are binded into the union.
-	 * Each function automatically detects the current union */
+	/* 가상페이지 상태 */
+	/* uninit 미사용 */
+	/* anon 익명 : 특정 파일과 연결되어 있지 않고 스왑 공간 영역 */
+	/* file 파일 : 디스크에 존재 */
+	/* 캐쉬용 파일 : 미사용 */
 	union {
 		struct uninit_page uninit;
 		struct anon_page anon;
@@ -59,16 +83,16 @@ struct page {
 	};
 };
 
-/* The representation of "frame" */
+/* "프레임"의 표현 */
 struct frame {
 	void *kva;
 	struct page *page;
 };
 
-/* The function table for page operations.
- * This is one way of implementing "interface" in C.
- * Put the table of "method" into the struct's member, and
- * call it whenever you needed. */
+/* 페이지 작업을 위한 함수 테이블.
+ * 이는 C에서 "인터페이스"를 구현하는 한 가지 방법입니다.
+ * "메소드" 테이블을 구조체의 멤버에 넣고,
+ * 필요할 때마다 호출합니다. */
 struct page_operations {
 	bool (*swap_in) (struct page *, void *);
 	bool (*swap_out) (struct page *);
@@ -81,10 +105,21 @@ struct page_operations {
 #define destroy(page) \
 	if ((page)->operations->destroy) (page)->operations->destroy (page)
 
-/* Representation of current process's memory space.
- * We don't want to force you to obey any specific design for this struct.
- * All designs up to you for this. */
+/* 현재 프로세스의 메모리 공간의 표현.
+ * 이 구조체에 대해 특정 설계를 따르도록 강제하지 않습니다.
+ * 모든 설계는 여러분에게 달려 있습니다. */
 struct supplemental_page_table {
+	/* PDG hash 구조 사용 */
+	struct hash spt_hash;
+	//struct semaphore hash_sema;
+};
+
+struct aux_copy
+{
+    struct file *file;
+    off_t ofs;
+	uint32_t read_bytes;
+    uint32_t zero_bytes;
 };
 
 #include "threads/thread.h"
@@ -110,3 +145,4 @@ bool vm_claim_page (void *va);
 enum vm_type page_get_type (struct page *page);
 
 #endif  /* VM_VM_H */
+

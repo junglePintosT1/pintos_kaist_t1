@@ -15,4 +15,14 @@ int process_add_file(struct file *f);
 struct file *process_get_file(int fd);
 void process_close_file(int fd);
 
+/* PDG 보조데이터 전달 함수 생성 */ 
+struct aux_list
+{
+    struct file *file;
+    off_t ofs;
+	uint32_t read_bytes;
+    uint32_t zero_bytes;
+};
+
+
 #endif /* userprog/process.h */

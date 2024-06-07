@@ -39,19 +39,17 @@ struct hash_elem {
 	((STRUCT *) ((uint8_t *) &(HASH_ELEM)->list_elem        \
 		- offsetof (STRUCT, MEMBER.list_elem)))
 
-/* Computes and returns the hash value for hash element E, given
- * auxiliary data AUX. */
+/* 보조적인 데이터 AUX 를 주면, 
+ * 해시 요소의 해시 값을 계산하고 반환합니다. */
 typedef uint64_t hash_hash_func (const struct hash_elem *e, void *aux);
 
-/* Compares the value of two hash elements A and B, given
- * auxiliary data AUX.  Returns true if A is less than B, or
- * false if A is greater than or equal to B. */
+/* 두 해시 요소 A와 B의 값을 AUX 보조 데이터를 사용하여 비교합니다.
+ * A가 B보다 작으면 true를 반환하고, A가 B보다 크거나 같으면 false를 반환합니다. */
 typedef bool hash_less_func (const struct hash_elem *a,
 		const struct hash_elem *b,
 		void *aux);
 
-/* Performs some operation on hash element E, given auxiliary
- * data AUX. */
+/* 보조 데이터 보조 AUX 주어진 해시 요소 E에서 일부 작업을 수행합니다. */
 typedef void hash_action_func (struct hash_elem *e, void *aux);
 
 /* Hash table. */
@@ -60,8 +58,8 @@ struct hash {
 	size_t bucket_cnt;          /* Number of buckets, a power of 2. */
 	struct list *buckets;       /* Array of `bucket_cnt' lists. */
 	hash_hash_func *hash;       /* Hash function. */
-	hash_less_func *less;       /* Comparison function. */
-	void *aux;                  /* Auxiliary data for `hash' and `less'. */
+	hash_less_func *less;       /* 비교 함수. */
+	void *aux;                  /* `hash '및`less'에 대한 보조 데이터. */
 };
 
 /* A hash table iterator. */
@@ -85,6 +83,7 @@ struct hash_elem *hash_delete (struct hash *, struct hash_elem *);
 /* Iteration. */
 void hash_apply (struct hash *, hash_action_func *);
 void hash_first (struct hash_iterator *, struct hash *);
+
 struct hash_elem *hash_next (struct hash_iterator *);
 struct hash_elem *hash_cur (struct hash_iterator *);
 
@@ -96,5 +95,7 @@ bool hash_empty (struct hash *);
 uint64_t hash_bytes (const void *, size_t);
 uint64_t hash_string (const char *);
 uint64_t hash_int (int);
+
+
 
 #endif /* lib/kernel/hash.h */

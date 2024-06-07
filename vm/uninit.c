@@ -51,7 +51,7 @@ uninit_initialize (struct page *page, void *kva) {
 	vm_initializer *init = uninit->init;
 	void *aux = uninit->aux;
 
-	/* TODO: You may need to fix this function. */
+	/* TODO: 이 기능을 수정해야 할 수도 있습니다. */
 	return uninit->page_initializer (page, uninit->type, kva) &&
 		(init ? init (page, aux) : true);
 }

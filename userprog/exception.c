@@ -126,11 +126,10 @@ page_fault(struct intr_frame *f)
 	bool user;		  /* True: access by user, false: access by kernel. */
 	void *fault_addr; /* Fault address. */
 
-	/* Obtain faulting address, the virtual address that was
-	   accessed to cause the fault.  It may point to code or to
-	   data.  It is not necessarily the address of the instruction
-	   that caused the fault (that's f->rip). */
-
+	
+/* 폴트가 발생한 주소를 얻습니다. 
+ * 폴트가 발생한 가상 주소는 폴트를 일으킨 명령어의 주소(f->rip)가 
+ * 아닐 수 있으며, 코드나 데이터를 가리킬 수 있습니다. */
 	fault_addr = (void *)rcr2();
 
 	/* Turn interrupts back on (they were only off so that we could
@@ -142,14 +141,14 @@ page_fault(struct intr_frame *f)
 	write = (f->error_code & PF_W) != 0;
 	user = (f->error_code & PF_U) != 0;
 
-	/* NOTE: [2.4] 페이지 폴트 발생 시 exit(-1) 호출 */
-	exit(-1);
-
 #ifdef VM
 	/* For project 3 and later. */
-	if (vm_try_handle_fault(f, fault_addr, user, write, not_present))
+	if (vm_try_handle_fault(f, fault_addr, user, write, not_present)){
 		return;
+	}
 #endif
+	/* NOTE: [2.4] 페이지 폴트 발생 시 exit(-1) 호출 */
+	exit(-1);
 
 	/* Count page faults. */
 	page_fault_cnt++;

@@ -66,3 +66,7 @@ Mkfile.old
 dkms.conf
 
 
+vm/gdb_run.sh
+vm/only_run.sh
+userprog/run_test_oom.sh
+vm/run_test_oom.sh

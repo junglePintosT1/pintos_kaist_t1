@@ -6,6 +6,9 @@
    new page tables immediately.  See [IA32-v2a] "MOV--Move
    to/from Control Registers" and [IA32-v3a] 3.7.5 "Base Address
    of the Page Directory". */
+/* 페이지 디렉토리의 물리 주소를 CR3 또는 PDBR (페이지 디렉토리 베이스 레지스터)에 저장합니다.
+   이로써 새로운 페이지 테이블이 즉시 활성화됩니다.
+   [IA32-v2a] "MOV--Move to/from Control Registers" 및 [IA32-v3a] 3.7.5 "페이지 디렉토리의 기본 주소"를 참조하세요. */
 __attribute__((always_inline))
 static __inline void lcr3(uint64_t val) {
 	__asm __volatile("movq %0, %%cr3" : : "r" (val));

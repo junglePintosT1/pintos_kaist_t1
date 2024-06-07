@@ -174,6 +174,7 @@ __do_fork(void *aux)
 	process_activate(current);
 #ifdef VM
 	supplemental_page_table_init(&current->spt);
+	// vm_alloc_page_with_initializer(VM_ANON,);
 	if (!supplemental_page_table_copy(&current->spt, &parent->spt))
 		goto error;
 #else
@@ -185,7 +186,7 @@ __do_fork(void *aux)
 	 * NOTE:       in include/filesys/file.h. Note that parent should not return
 	 * NOTE:       from the fork() until this function successfully duplicates
 	 * NOTE:       the resources of parent.*/
-
+	
 	for (int i = 0; i < FDT_MAX; i++)
 	{
 		struct file *file = parent->fdt[i];
@@ -242,6 +243,7 @@ int process_exec(void *f_name) /* NOTE: 강의의 start_process() */
 	lock_acquire(&filesys_lock);
 	/* And then load the binary */
 	success = load(file_name, &_if);
+	
 	lock_release(&filesys_lock);
 
 	/* NOTE: [2.3] 메모리 적재 완료 시 부모 프로세스 다시 진행 (세마포어 이용) */
@@ -356,6 +358,12 @@ void process_exit(void)
 	for (int idx = 2; idx < FDT_MAX; idx++)
 		file_close(process_get_file(idx));
 	palloc_free_page(curr->fdt);
+	
+	#ifdef VM
+		/* PDG 엔트리 제거 */
+		supplemental_page_table_kill(&curr->spt);
+	#endif
+
 	process_cleanup();
 
 	/* NOTE: [2.3] thread_exit 수정 */
@@ -511,10 +519,10 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
 						 uint32_t read_bytes, uint32_t zero_bytes,
 						 bool writable);
 
-/* Loads an ELF executable from FILE_NAME into the current thread.
- * Stores the executable's entry point into *RIP
- * and its initial stack pointer into *RSP.
- * Returns true if successful, false otherwise. */
+/* ELF 실행 파일을 FILE_NAME에서 현재 스레드로 로드합니다.
+ * 실행 파일의 진입점을 *RIP에 저장하고
+ * 초기 스택 포인터를 *RSP에 저장합니다.
+ * 성공하면 true를 반환하고, 그렇지 않으면 false를 반환합니다. */
 static bool
 load(const char *file_name, struct intr_frame *if_)
 {
@@ -608,11 +616,9 @@ load(const char *file_name, struct intr_frame *if_)
 	/* NOTE: [2.5] 파일 open 시 file_deny_write() 호출 / thread 구조체에 실행 중인 파일 추가 */
 	file_deny_write(file);
 	t->run_file = file;
-
 	/* Set up stack. */
 	if (!setup_stack(if_))
 		goto done;
-
 	/* Start address. */
 	if_->rip = ehdr.e_entry;
 
@@ -782,25 +788,32 @@ install_page(void *upage, void *kpage, bool writable)
 static bool
 lazy_load_segment(struct page *page, void *aux)
 {
-	/* TODO: Load the segment from the file */
-	/* TODO: This called when the first page fault occurs on address VA. */
-	/* TODO: VA is available when calling this function. */
-}
+	/* TODO: 파일에서 세그먼트를 로드하십시오. */
+	/* TODO: 이 함수는 주소 VA에서 첫 번째 페이지 폴트가 발생했을 때 호출됩니다. */
+	/* TODO: 이 함수를 호출할 때 VA는 유효합니다. */
 
-/* Loads a segment starting at offset OFS in FILE at address
- * UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
- * memory are initialized, as follows:
- *
- * - READ_BYTES bytes at UPAGE must be read from FILE
- * starting at offset OFS.
- *
- * - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
- *
- * The pages initialized by this function must be writable by the
- * user process if WRITABLE is true, read-only otherwise.
- *
- * Return true if successful, false if a memory allocation error
- * or disk read error occurs. */
+	struct aux_list *aux_list = (struct aux_list *)aux;
+	// 1) 파일의 position을 ofs으로 지정한다.
+	file_seek(aux_list->file, aux_list->ofs);
+	// 2) 파일을 read_bytes만큼 물리 프레임에 읽어 들인다.
+	if (file_read(aux_list->file, page->frame->kva, aux_list->read_bytes) != (int)(aux_list->read_bytes))
+	{
+		palloc_free_page(page->frame->kva);
+		return false;
+	}
+	// 3) 다 읽은 지점부터 zero_bytes만큼 0으로 채운다.
+	memset(page->frame->kva + aux_list->read_bytes, 0, aux_list->zero_bytes);
+
+	return true;
+}
+/* 파일의 OFS 오프셋에서 시작하는 세그먼트를 UPAGE 주소에 로드합니다.
+총 READ_BYTES + ZERO_BYTES 바이트의 가상 메모리가 다음과 같이 초기화됩니다:
+
+UPAGE에서 시작하는 READ_BYTES 바이트는 파일의 OFS 오프셋에서 읽어야 합니다.
+UPAGE + READ_BYTES에서 시작하는 ZERO_BYTES 바이트는 0으로 설정해야 합니다.
+이 함수에 의해 초기화된 페이지는 WRITABLE이 true인 경우 사용자 프로세스가 쓸 수 있어야 하고, 
+그렇지 않은 경우 읽기 전용이어야 합니다. 성공하면 true를 반환하고, 
+메모리 할당 오류나 디스크 읽기 오류가 발생하면 false를 반환합니다. */
 static bool
 load_segment(struct file *file, off_t ofs, uint8_t *upage,
 			 uint32_t read_bytes, uint32_t zero_bytes, bool writable)
@@ -811,38 +824,50 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 
 	while (read_bytes > 0 || zero_bytes > 0)
 	{
-		/* Do calculate how to fill this page.
-		 * We will read PAGE_READ_BYTES bytes from FILE
-		 * and zero the final PAGE_ZERO_BYTES bytes. */
+		/* 이 페이지를 채우는 방법을 계산하십시오.
+		 * 파일에서 page_read_bytes 바이트를 읽고 최종 page_zero_bytes 바이트를 읽습니다.*/
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
-		if (!vm_alloc_page_with_initializer(VM_ANON, upage,
-											writable, lazy_load_segment, aux))
+		/* TODO: aux를 설정하여 정보를 Lazy_load_segment에 전달하십시오. */
+		struct aux_list *aux = malloc(sizeof(struct aux_list));
+		aux->file = file;
+		aux->ofs = ofs;
+		aux->read_bytes = page_read_bytes;
+		aux->zero_bytes = page_zero_bytes;
+		
+		if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux)){
+			free(aux);
 			return false;
-
-		/* Advance. */
+		}
+		//free(aux);
+		/* Advance. 페이지 생성 성공시 포인터 초기화 및 유저 페이지 늘림 */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
+		ofs += page_read_bytes;
 		upage += PGSIZE;
 	}
 	return true;
 }
 
-/* Create a PAGE of stack at the USER_STACK. Return true on success. */
+/* user_stack에서 스택 페이지를 만듭니다.성공시 true를 반환하십시오. */
 static bool
 setup_stack(struct intr_frame *if_)
 {
 	bool success = false;
 	void *stack_bottom = (void *)(((uint8_t *)USER_STACK) - PGSIZE);
-
-	/* TODO: Map the stack on stack_bottom and claim the page immediately.
-	 * TODO: If success, set the rsp accordingly.
-	 * TODO: You should mark the page is stack. */
-	/* TODO: Your code goes here */
-
+	/* TODO: stack_bottom에 스택을 매핑하고 페이지를 즉시 클레임하십시오.
+	 * TODO: 성공하면 rsp를 적절히 설정하십시오.
+	 * TODO: 페이지를 스택으로 표시해야 합니다. */
+	/* TODO: 여기에 코드를 작성하십시오 */
+	if (vm_alloc_page(VM_ANON|VM_MARKER_0, stack_bottom, true))
+	{
+		success = vm_claim_page(stack_bottom);
+	}
+	if (success)
+	{
+		if_->rsp = USER_STACK;
+	}
 	return success;
 }
 #endif /* VM */

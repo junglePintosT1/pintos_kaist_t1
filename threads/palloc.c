@@ -272,7 +272,7 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt) {
 		pages = pool->base + PGSIZE * page_idx;
 	else
 		pages = NULL;
-
+		
 	if (pages) {
 		if (flags & PAL_ZERO)
 			memset (pages, 0, PGSIZE * page_cnt);
