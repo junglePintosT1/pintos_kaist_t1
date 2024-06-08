@@ -791,7 +791,6 @@ bool lazy_load_segment(struct page *page, void *aux)
 		return false;
 	}
 	memset(page->frame->kva + read_bytes, 0, zero_bytes);
-	// free(page_load_info);
 
 	return true;
 }
@@ -817,6 +816,7 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 	ASSERT(pg_ofs(upage) == 0);
 	ASSERT(ofs % PGSIZE == 0);
 
+	read_bytes = file_length(file) < read_bytes ? file_length(file) : read_bytes;
 	while (read_bytes > 0 || zero_bytes > 0)
 	{
 		/* Do calculate how to fill this page.
