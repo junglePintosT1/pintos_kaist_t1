@@ -143,20 +143,28 @@ do_mmap(void *addr, size_t length, int writable,
 	return start_addr;
 }
 
-/* Do the munmap */
+/**
+ * @brief 주어진 주소에서 시작하는 매모리 매핑을 해제하는 함수
+ *
+ * @param addr 해제를 시작할 메모리 주소
+ */
 void do_munmap(void *addr)
 {
-	/* TODO: 지정된 주소 범위 addr에 대한 매핑 해제 */
-	/* TODO: 프로세스가 종료될 때 모든 매핑이 암시적으로 해제된다. (via exit) */
-	/* TODO: 프로세스에 의해 작성된 모든 페이지는 파일에 다시 쓰여야 하고, 작성되지 않은 페이지는 다시 쓰여지지 않아야 한다. */
-	/* TODO: 그런 다음 페이지는 프로세스의 가상 페이지 목록에서 제거된다. */
+	/* spt에서 addr에 해당하는 페이지를 가져옴 */
+	struct supplemental_page_table *spt = &thread_current()->spt;
+	struct page *page = spt_find_page(spt, addr);
 
-	struct page *page = spt_find_page(&thread_current()->spt, addr);
-	if (page == NULL)
-		return;
-	if (pml4_is_dirty(thread_current()->pml4, page->va))
+	/* 매핑된 총 페이지 수 */
+	int count = page->mapped_page_count;
+
+	/* 모든 매핑된 페이지 해제*/
+	for (int i = 0; i < count; i++)
 	{
-		file_write_at(page->file.file, page->frame->kva, page->file.length, page->file.offset);
+		if (page)
+			spt_remove_page(spt, page);
+
+		/* 다음 페이지로 이동 */
+		addr += PGSIZE;
+		page = spt_find_page(spt, addr);
 	}
-	spt_remove_page(&thread_current()->spt, page);
 }
