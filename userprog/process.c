@@ -775,8 +775,7 @@ install_page(void *upage, void *kpage, bool writable)
  * 모든 페이지는 커널이 페이지 폴트를 인터셉트할 때만 로드되도록 지연 로딩되어야 한다.
  */
 
-static bool
-lazy_load_segment(struct page *page, void *aux)
+bool lazy_load_segment(struct page *page, void *aux)
 {
 	struct page_load_info *page_load_info = (struct page_load_info *)aux;
 
@@ -792,6 +791,7 @@ lazy_load_segment(struct page *page, void *aux)
 		return false;
 	}
 	memset(page->frame->kva + read_bytes, 0, zero_bytes);
+	// free(page_load_info);
 
 	return true;
 }
