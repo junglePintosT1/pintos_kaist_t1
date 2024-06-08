@@ -130,7 +130,7 @@ void syscall_handler(struct intr_frame *f)
 		close(f->R.rdi);
 		break;
 	case SYS_MMAP: // 14
-		mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+		f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
 		break;
 	case SYS_MUNMAP: // 15
 		munmap(f->R.rdi);
@@ -357,22 +357,23 @@ void *mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 	 * 2. addr이 페이지 정렬이 되지 않은 경우
 	 * 3. 매핑된 페이지 범위가 스택이나 실행 파일 로드 시 매핑된 페이지와 겹치는 경우
 	 */
-	check_address(addr);
+	if (addr == NULL || is_kernel_vaddr(addr))
+		return NULL;
 
 	if (addr != pg_round_down(addr) || offset != pg_round_down(offset))
-		return;
+		return NULL;
 	if (is_kernel_vaddr(addr + length))
-		return;
+		return NULL;
 	if (spt_find_page(&thread_current()->spt, addr))
-		return;
+		return NULL;
 
 	struct file *file = process_get_file(fd);
 	if (!file)
-		return;
+		return NULL;
 	if (file_length(file) <= 0 || length <= 0)
-		return;
+		return NULL;
 
-	do_mmap(addr, length, writable, file, offset);
+	return do_mmap(addr, length, writable, file, offset);
 }
 
 void munmap(void *addr)
