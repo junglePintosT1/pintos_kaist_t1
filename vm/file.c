@@ -4,6 +4,7 @@
 #include "userprog/process.h"
 #include "threads/vaddr.h"
 #include "threads/mmu.h"
+#include "vm/vm.h"
 
 static bool file_backed_swap_in(struct page *page, void *kva);
 static bool file_backed_swap_out(struct page *page);
@@ -85,68 +86,61 @@ file_backed_destroy(struct page *page)
 	pml4_clear_page(pml4, upage);
 }
 
-static bool
-lazy_load_segment(struct page *page, void *aux)
-{
-	struct page_load_info *page_load_info = (struct page_load_info *)aux;
-
-	struct file *file = page_load_info->file;
-	off_t offset = page_load_info->offset;
-	size_t read_bytes = page_load_info->read_bytes;
-	size_t zero_bytes = page_load_info->zero_bytes;
-
-	file_seek(file, offset);
-	if (file_read(file, page->frame->kva, read_bytes) != (off_t)read_bytes)
-	{
-		palloc_free_page(page->frame->kva);
-		return false;
-	}
-	memset(page->frame->kva + read_bytes, 0, zero_bytes);
-
-	return true;
-}
-
-/* Do the mmap */
+/**
+ * @brief 메모리에 파일을 매핑하는 함수
+ *
+ * @param addr 매핑을 시작할 메모리 주소
+ * @param length 매핑할 바이트 수
+ * @param writable 매핑된 메모리 영역이 쓰기 가능한지 여부를 나타내는 플래그
+ * @param file 매핑할 파일의 포인터
+ * @param offset 파일 내에서 매핑을 시작할 바이트 위치
+ * @return void* 매핑이 시작된 메모리 주소. 매핑에 실패하면 NULL 반환
+ */
 void *
 do_mmap(void *addr, size_t length, int writable,
 		struct file *file, off_t offset)
 {
-	/**
-	 * TODO: GITBOOK
-	 * fd로 열린 파일의 offset 바이트에서 시작하여 length 바이트를 프로세스의 가상 주소 공간의 addr에서 매핑한다.
-	 * 파일 전체가 addr에서 시작하는 연속적인 가상 페이지로 매핑된다.
-	 * 파일 길이가 PGSIZE의 배수가 아닌 경우, 마지막 매핑된 페이지의 일부 바이트는 0으로 채워진다.
-	 * 페이지가 디스크에 다시 쓰여질 때 0으로 채워진 부분은 폐기해야 한다.
-	 *
-	 *
-	 */
+	/* file_reopen을 이용해 각 매핑이 파일에 대해 독립적인 참조를 가지도록 함 */
+	struct file *f = file_reopen(file);
+	/* 매핑 시작 주소 저장 */
+	void *start_addr = addr;
+	/* 매핑에 필요한 총 페이지 수 계산 */
+	int total_page_count = length <= PGSIZE ? 1 : length % PGSIZE ? length / PGSIZE + 1
+																  : length / PGSIZE;
 
-	/* FIXME: anonymous랑 file_backed랑 어떤 부분에서 다른 처리를 해줘야 하는걸까? */
+	/* 매핑할 바이트 수가 파일의 길이보다 큰 경우, 파일의 길이로 제한 */
+	size_t read_bytes = file_length(file) < read_bytes ? file_length(file) : read_bytes;
 
-	while (length > 0)
+	while (read_bytes > 0)
 	{
-		size_t page_read_bytes = length < PGSIZE ? length : PGSIZE;
+		/* 한 페이지에 읽을 바이트 수와 0으로 채울 바이트 수 계산 */
+		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
+		/* 페이지 로드 정보를 위한 구조체 할당 및 초기화 */
 		struct page_load_info *page_load_info = malloc(sizeof(struct page_load_info));
-		page_load_info->file = file;
+		page_load_info->file = f;
 		page_load_info->offset = offset;
 		page_load_info->read_bytes = page_read_bytes;
 		page_load_info->zero_bytes = page_zero_bytes;
 
-		/* 예외처리 3-2 : 매핑된 페이지 범위가 실행 파일 로드 시 매핑된 페이지와 겹치는 경우 */
+		/* 페이지 할당 및 초기화. 실패 시 NULL 반환 */
 		if (!vm_alloc_page_with_initializer(VM_FILE, addr, writable, lazy_load_segment, (void *)page_load_info))
 		{
 			free(page_load_info);
-			return false;
+			return NULL;
 		}
+
+		/* 생성된 페이지에 총 페이지 개수 저장 */
+		spt_find_page(&thread_current()->spt, addr)->mapped_page_count = total_page_count;
 
 		/* Advance. */
 		addr += PGSIZE;
 		offset += page_read_bytes;
-		length -= page_read_bytes;
+		read_bytes -= page_read_bytes;
 	}
-	return true;
+	/* 매핑이 시작된 주소 반환 */
+	return start_addr;
 }
 
 /* Do the munmap */
