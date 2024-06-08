@@ -247,7 +247,13 @@ int filesize(int fd)
 int read(int fd, void *buffer, unsigned size)
 {
 	check_address(buffer);
-
+	
+	//tests/vm/pt-write-code2 를 위해 임시 추가
+	struct page *page = spt_find_page(&thread_current()->spt, buffer);
+	if(page && !page->writable){
+		exit(-1);
+	}
+	
 	/* 파일에 동시 접근이 일어날 수 있으므로 Lock 사용 */
 	lock_acquire(&filesys_lock);
 	/* 파일 디스크립터를 이용하여 파일 객체 검색 */

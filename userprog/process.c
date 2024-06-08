@@ -391,13 +391,12 @@ process_cleanup(void)
 	pml4 = curr->pml4;
 	if (pml4 != NULL)
 	{
-		/* Correct ordering here is crucial.  We must set
-		 * cur->pagedir to NULL before switching page directories,
-		 * so that a timer interrupt can't switch back to the
-		 * process page directory.  We must activate the base page
-		 * directory before destroying the process's page
-		 * directory, or our active page directory will be one
-		 * that's been freed (and cleared). */
+		/* 여기서 올바른 순서는 매우 중요합니다.
+
+		타이머 인터럽트가 프로세스 페이지 디렉토리로 다시 전환할 수 없도록
+		페이지 디렉토리를 전환하기 전에 cur->pagedir를 NULL로 설정해야 합니다.
+		프로세스의 페이지 디렉토리를 파괴하기 전에 기본 페이지 디렉토리를 활성화해야 합니다.
+		그렇지 않으면 활성 페이지 디렉토리가 해제되고(및 지워진) 디렉토리가 될 수 있습니다. */
 		curr->pml4 = NULL;
 		pml4_activate(NULL);
 		pml4_destroy(pml4);
@@ -836,7 +835,7 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 		aux->read_bytes = page_read_bytes;
 		aux->zero_bytes = page_zero_bytes;
 		
-		if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux)){
+		if (!vm_alloc_page_with_initializer(VM_FILE, upage, writable, lazy_load_segment, aux)){
 			free(aux);
 			return false;
 		}

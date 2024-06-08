@@ -111,7 +111,7 @@ struct page_operations {
 struct supplemental_page_table {
 	/* PDG hash 구조 사용 */
 	struct hash spt_hash;
-	//struct semaphore hash_sema;
+	struct lock lock;
 };
 
 struct aux_copy

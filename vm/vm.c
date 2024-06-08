@@ -171,6 +171,19 @@ vm_get_frame (void) {
 /* 스택을 확장합니다. */
 static void
 vm_stack_growth (void *addr UNUSED) {
+    bool success;
+    addr = pg_round_down(addr);
+    while(spt_find_page(&thread_current()->spt, addr) == NULL){
+        if (vm_alloc_page(VM_ANON|VM_MARKER_0, addr, true))
+        {
+            success = vm_claim_page(addr);
+        }
+        if(!success){
+            palloc_free_page(addr);
+        }else{
+            addr += PGSIZE;
+        }
+    }
 }
 
 /* write_protected 페이지에 대한 오류 처리 */
@@ -191,12 +204,26 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
     if (!is_user_vaddr(addr) || addr == NULL) {
         return false; // 주소가 유효하지 않은 경우 false를 반환합니다.
     }
-    
+    if(USER_STACK - (1 << 20) <= f->rsp - 8 && f->rsp - 8 == addr && addr <= USER_STACK){
+        if(!user){
+            return false;
+        }
+        vm_stack_growth(addr);
+        return true;
+    }
+    else if(USER_STACK - (1 << 20) <= f->rsp && f->rsp <= addr && addr <= USER_STACK){
+        vm_stack_growth(addr);
+        return true;
+    }
+
+
     page = spt_find_page (spt, addr);
 
 	if (page == NULL) {
 		return false;
     }
+    
+
 
     return vm_do_claim_page (page);
 }
@@ -243,17 +270,18 @@ vm_do_claim_page (struct page *page) {
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
     hash_init(&spt->spt_hash, page_hash, page_less, NULL);
-    //sema_init(&spt->hacssh_sema, 0);
+    lock_init(&spt->lock);
 }
 
 /* src에서 dst로 보조 페이지 테이블을 복사합니다. */
 bool
 supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct supplemental_page_table *src UNUSED) {
+    lock_acquire(&src->lock);
     //보조 데이터 셋팅
     src->spt_hash.aux = dst;
     //엘리먼트 전체 순회 하면서 hash_action_copy 동작 수행 
     hash_apply(&src->spt_hash, hash_action_copy);
-
+    lock_release(&src->lock);
     return true;
 }
 
@@ -262,9 +290,7 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: 스레드에 의해 보유되고 있는 모든 보조 페이지 테이블을 소멸시키고
  	   TODO: 수정된 모든 내용을 스토리지에 기록합니다. */
-    //sema_down(&spt->hash_sema);
     hash_clear(&spt->spt_hash, NULL);
-    //sema_up(&spt->hash_sema);
 }
 
 /* PDG 페이지의 주소로 해시 키 생성 */
@@ -293,6 +319,12 @@ void hash_action_copy (struct hash_elem *e, void *hash_aux){
 		vm_alloc_page_with_initializer(page->uninit.type, page->va, page->writable, page->uninit.init, page->uninit.aux);
 	}
 	if(VM_TYPE(type) == VM_ANON){
+		vm_alloc_page(type, page->va, page->writable);
+		struct page *newpage = spt_find_page(&t->spt, page->va); 
+		vm_do_claim_page(newpage);
+		memcpy(newpage->frame->kva, page->frame->kva, PGSIZE);
+	}
+	if(VM_TYPE(type) == VM_FILE){
 		vm_alloc_page(type, page->va, page->writable);
 		struct page *newpage = spt_find_page(&t->spt, page->va); 
 		vm_do_claim_page(newpage);
