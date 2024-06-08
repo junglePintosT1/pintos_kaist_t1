@@ -370,7 +370,7 @@ void *mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 	struct file *file = process_get_file(fd);
 	if (!file)
 		return NULL;
-	if (file_length(file) <= 0 || length <= 0)
+	if (file_length(file) <= 0 || (int)length <= 0)
 		return NULL;
 
 	return do_mmap(addr, length, writable, file, offset);
