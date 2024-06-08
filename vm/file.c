@@ -22,18 +22,29 @@ void vm_file_init(void)
 {
 }
 
-/* Initialize the file backed page */
+/**
+ * @brief file backed 페이지를 초기화하는 함수
+ *
+ * @param page 초기화할 페이지의 포인터
+ * @param type 페이지의 가상 메모리 타입
+ * @param kva 커널 가상 주소
+ * @return true 초기화가 성공적으로 완료되면 true 반환
+ * @return false 초기화가 실패하면 false 반환
+ */
 bool file_backed_initializer(struct page *page, enum vm_type type, void *kva)
 {
-	/* NOTE: initializer 호출 시 page의 vm_type은 uninit */
-	struct page_load_info *page_load_info = page->uninit.aux;
-
 	/* Set up the handler */
 	page->operations = &file_ops;
 
 	struct file_page *file_page = &page->file;
+
+	/* NOTE: initializer 호출 시 page의 vm_type은 uninit */
+	struct page_load_info *page_load_info = page->uninit.aux;
+
+	/* 파일 페이지 정보를 페이지 로드 정보를 이용해 초기화 */
+	file_page->file = page_load_info->file;
 	file_page->offset = page_load_info->offset;
-	file_page->length = page_load_info->read_bytes;
+	file_page->read_bytes = page_load_info->read_bytes;
 }
 
 /* Swap in the page by read contents from the file. */
