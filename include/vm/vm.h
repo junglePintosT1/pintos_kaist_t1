@@ -56,6 +56,7 @@ struct page
 	/* NOTE: [VM] 추가적인 정보 추가 */
 	struct hash_elem hash_elem; /* SPT에 넣을 hash_elem */
 	bool writable;				/* 쓰기 가능 여부 */
+	int mapped_page_count;		/* 매핑된 총 페이지의 개수 */
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
