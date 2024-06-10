@@ -130,6 +130,8 @@ bool spt_insert_page(struct supplemental_page_table *spt,
 
 void spt_remove_page(struct supplemental_page_table *spt, struct page *page)
 {
+	/* NOTE: [VM] spt의 hash에서 해당 페이지 삭제 */
+	hash_delete(&spt->hash, &page->hash_elem);
 	vm_dealloc_page(page);
 	return true;
 }
@@ -357,6 +359,23 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 			vm_initializer *init = src_page->uninit.init;
 			void *aux = src_page->uninit.aux;
 			vm_alloc_page_with_initializer(page_get_type(src_page), upage, writable, init, aux);
+			continue;
+		}
+
+		if (type == VM_FILE)
+		{
+			struct page_load_info *file_aux = malloc(sizeof(struct page_load_info));
+			file_aux->file = src_page->file.file;
+			file_aux->offset = src_page->file.offset;
+			file_aux->read_bytes = src_page->file.read_bytes;
+			// file_aux->zero_bytes = src_page->file.zero_bytes;
+
+			if (!vm_alloc_page_with_initializer(type, upage, writable, NULL, file_aux))
+				return false;
+			struct page *file_page = spt_find_page(dst, upage);
+			file_backed_initializer(file_page, type, NULL);
+			file_page->frame = src_page->frame;
+			pml4_set_page(thread_current()->pml4, file_page->va, src_page->frame->kva, src_page->writable);
 			continue;
 		}
 
