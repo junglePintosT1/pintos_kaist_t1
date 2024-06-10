@@ -7,12 +7,16 @@
 #include "threads/mmu.h"
 #include "userprog/syscall.h"
 
+static struct frame_table frame_table;
+
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
 void vm_init(void)
 {
 	vm_anon_init();
 	vm_file_init();
+	/* NOTE: frame table의 frame_list 초기화 */
+	list_init(&frame_table.frame_list);
 #ifdef EFILESYS /* For project 4 */
 	pagecache_init();
 #endif
@@ -177,10 +181,12 @@ vm_get_frame(void)
 		free(frame);
 		PANIC("todo");
 	}
-	frame->page = NULL;
+
+	/* NOTE: frame의 page_list 초기화 */
+	list_init(&frame->page_list);
 
 	ASSERT(frame != NULL);
-	ASSERT(frame->page == NULL);
+	ASSERT(list_empty(&frame->page_list));
 
 	return frame;
 }
@@ -287,7 +293,9 @@ vm_do_claim_page(struct page *page)
 		return false;
 
 	/* Set links */
-	frame->page = page;
+	// frame->page = page;
+	/* NOTE: frame의 page_list에 page 추가 */
+	list_push_back(&frame->page_list, &page->f_elem);
 	page->frame = frame;
 
 	/* NOTE: 페이지 테이블에 페이지의 VA와 프레임의 PA를 삽입 - install_page 참고 */
