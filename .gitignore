@@ -7,7 +7,7 @@
 # Unignore all dirs
 !*/
 
-**/build/*
+*/build/*
 .vscode/
 
 ### Above combination will ignore all files without extension ###
