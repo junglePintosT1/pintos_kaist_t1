@@ -784,12 +784,23 @@ bool lazy_load_segment(struct page *page, void *aux)
 	size_t read_bytes = page_load_info->read_bytes;
 	size_t zero_bytes = page_load_info->zero_bytes;
 
+	int flag = false;
+	if (!lock_held_by_current_thread(&filesys_lock))
+	{
+		lock_acquire(&filesys_lock);
+		flag = true;
+	}
+
 	file_seek(file, offset);
 	if (file_read(file, page->frame->kva, read_bytes) != (off_t)read_bytes)
 	{
 		palloc_free_page(page->frame->kva);
+		if (flag)
+			lock_release(&filesys_lock);
 		return false;
 	}
+	if (flag)
+		lock_release(&filesys_lock);
 	memset(page->frame->kva + read_bytes, 0, zero_bytes);
 
 	return true;

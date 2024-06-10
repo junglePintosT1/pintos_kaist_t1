@@ -5,6 +5,7 @@
 #include "threads/vaddr.h"
 #include "threads/mmu.h"
 #include "vm/vm.h"
+#include "userprog/syscall.h"
 
 static bool file_backed_swap_in(struct page *page, void *kva);
 static bool file_backed_swap_out(struct page *page);
@@ -78,8 +79,10 @@ file_backed_destroy(struct page *page)
 	/* 페이지가 변경되었는지 확인 */
 	if (pml4_is_dirty(pml4, page->va))
 	{
+		lock_acquire(&filesys_lock);
 		/* 페이지가 변경되었다면, 변경된 내용을 파일에 쓰고, 페이지의 dirty를 false로 변경 */
 		file_write_at(file_page->file, page->va, file_page->read_bytes, file_page->offset);
+		lock_release(&filesys_lock);
 		pml4_set_dirty(pml4, upage, false);
 	}
 	/* pml4에서 페이지 제거 */
