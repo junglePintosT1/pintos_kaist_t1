@@ -80,6 +80,12 @@ void syscall_handler(struct intr_frame *f)
 	/* TODO: [2.5] fork 추가 */
 	uint64_t syscall_num = f->R.rax;
 
+  printf("sys : 여기로 빠지슈 %d\n", syscall_num );
+
+	#ifdef VM
+    thread_current() -> utok_rsp = f -> rsp;
+	#endif
+
 	switch (syscall_num)
 	{
 	case SYS_HALT: // 0
@@ -123,6 +129,13 @@ void syscall_handler(struct intr_frame *f)
 		break;
 	case SYS_CLOSE: // 13
 		close(f->R.rdi);
+		break;
+	case SYS_MMAP: // 14
+		f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+		break;
+	case SYS_MUNMAP:  // 15
+  	printf("sys : 여긴 syscall 뱃속\n");
+		munmap(f->R.rdi);
 		break;
 	}
 }
@@ -248,6 +261,11 @@ int read(int fd, void *buffer, unsigned size)
 {
 	check_address(buffer);
 
+	struct page *page = spt_find_page(&thread_current()->spt, buffer);
+
+	if (page && !page->writable)
+		exit(-1);
+
 	/* 파일에 동시 접근이 일어날 수 있으므로 Lock 사용 */
 	lock_acquire(&filesys_lock);
 	/* 파일 디스크립터를 이용하여 파일 객체 검색 */
@@ -329,6 +347,50 @@ void close(int fd)
 {
 	/* 해당 파일 디스크립터에 해당하는 파일을 닫음 */
 	process_close_file(fd);
+}
+
+void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
+	// - length가 0인 경우, addr이  인 경우, fd == 0 or fd == 1인 경우
+	if ( length <= 0 || addr == 0 || fd == 0 || fd == 1 )
+		return NULL;
+	
+	// - addr이 page_aligned 되지 않은 경우
+	if (pg_ofs(addr) != 0)
+		return NULL;
+
+	// - addr이 커널영역의 주소라면 (시작 주소와, 끝 주소를 모두 검사)
+	if (!is_user_vaddr(addr) || !is_user_vaddr(addr + length - 1))
+		return NULL;
+
+	// - fd로 열린 파일의 크기가 0인 경우
+	struct file* f = process_get_file(fd);
+  if ( f == NULL || file_length(f) == 0 )
+		return NULL;
+
+	// - 기존 매핑된 페이지 집힙과 겹치는 경우
+	struct thread *curr = thread_current();
+	void *end_addr = addr + length;
+	for (void *va = addr; va < end_addr; va += PGSIZE) {
+		struct page p;
+		struct hash_elem *e;
+
+		p.va = va;
+		e = hash_find(&curr -> spt, &p.elem);
+		
+		if (e != NULL)
+			return NULL;
+	}
+
+	return do_mmap(addr, length, writable, f, offset);
+}
+
+void munmap(void *addr) { 
+
+	if (addr == NULL || is_user_vaddr(addr))
+		return NULL;
+
+  printf("sys : munmap 들어가나?\n");
+	do_munmap(addr);
 }
 
 /* ---------- UTIL ---------- */

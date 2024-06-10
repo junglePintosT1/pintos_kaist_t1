@@ -152,6 +152,8 @@ mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
 
 void
 munmap (void *addr) {
+  printf("sys : 여기는? 여기가 시작인데?\n");
+
 	syscall1 (SYS_MUNMAP, addr);
 }
 

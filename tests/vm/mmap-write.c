@@ -25,8 +25,14 @@ test_main (void)
   munmap (map);
 
   /* Read back via read(). */
+  printf("sys : here\n");
   read (handle, buf, strlen (sample));
+  printf("sys : her22222e\n");
+
   CHECK (!memcmp (buf, sample, strlen (sample)),
          "compare read data against written data");
+
+  printf("sys : herfsdafsdfsdfsdfe\n");
+
   close (handle);
 }

@@ -28,7 +28,11 @@ test_main (void)
   msg ("write to mmap");
   memset (zeros, 0, 0x1000);
   memcpy ((void *) 0x10000000, zeros, 0x1000);
+
+  printf("sys : 여기 왜 안들어감?\n");
   munmap ((void *) 0x10000000);
+  printf("sys : 여기 왜 안들어감?\n");
+
 
   msg ("validate contents.");
 

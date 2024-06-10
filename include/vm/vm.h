@@ -51,6 +51,7 @@ struct page {
 	/* Your implementation */
 	struct hash_elem  elem;         // 해시 테이블 Element
 	bool writable;
+	int page_count;									// for file-backed Page
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */

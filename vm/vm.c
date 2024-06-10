@@ -13,6 +13,7 @@
 #include "threads/init.h" // PANIC 매크로를 사용하기 위한 헤더 파일
 #include "threads/vaddr.h"
 #include "threads/thread.h"
+#include "userprog/process.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -299,7 +300,29 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 			continue;
 		}
 
-		// anonymous, file_mapped 타입인 경우 uninit 상태에서 pagefault로 컨텐츠가 로드되었거나, 직접 로드된 상태의 페이지를 의미
+		else if ( type == VM_FILE ) {
+			struct aux_struct *aux = (struct aux*)malloc(sizeof(struct aux_struct));
+			aux -> file = curr_page -> file.file;
+			aux -> offset = curr_page -> file.offset;
+			aux -> read_bytes = curr_page -> file.read_bytes;
+			aux -> zero_bytes = curr_page -> file.zero_bytes;
+
+			if(!vm_alloc_page_with_initializer(VM_FILE, upage, writable, NULL, aux))
+				return false;
+
+			struct page *file_page = spt_find_page(dst, upage);
+			
+			// file-backed page 초기화
+			file_backed_initializer(file_page, type, NULL); 
+
+			// 기존 부모 프로세스가 사용하는 프레임과 연결 -> 두 프로세스가 동일한 파일을 매핑하는 경우 물리 프레임을 공유
+			file_page -> frame = curr_page -> frame; 
+			pml4_set_page(thread_current() -> pml4, file_page -> va, curr_page -> frame -> kva); 
+
+			continue;
+		}
+
+		// anonymous 타입인 경우 uninit 상태에서 pagefault로 컨텐츠가 로드되었거나, 직접 로드된 상태의 페이지를 의미
 		// 해당 페이지는 lazy loading 없이 직접 페이지를 로드
 		if ( !vm_alloc_page_with_initializer(type, upage, writable, NULL, NULL) )
 			return false;
