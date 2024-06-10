@@ -12,7 +12,6 @@
 #include "filesys/filesys.h"
 #include "lib/string.h"
 #include "lib/syscall-nr.h"
-#include "lib/user/syscall.h"
 #include "userprog/process.h"
 #include "devices/input.h"
 #include "threads/palloc.h"
@@ -40,9 +39,13 @@ void syscall_handler(struct intr_frame *);
 /* process */
 void halt(void);
 void exit(int status);
-pid_t exec(const char *cmd_line);
 pid_t sys_fork(const char *thread_name, struct intr_frame *f);
+pid_t exec(const char *cmd_line);
+
+/* file */
 int wait(pid_t pid);
+bool create(const char *file, unsigned initial_size);
+bool remove(const char *file);
 int open(const char *file_name);
 int filesize(int fd);
 int read(int fd, void *buffer, unsigned size);
@@ -51,9 +54,9 @@ void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
 
-/* file */
-bool create(const char *file, unsigned initial_size);
-bool remove(const char *file);
+/* vm */
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset);
+void munmap(void *addr);
 
 void check_address(void *addr);
 
@@ -77,8 +80,10 @@ void syscall_init(void)
 void syscall_handler(struct intr_frame *f)
 {
 	// NOTE: [2.X] Your implementation goes here.
-	/* TODO: [2.5] fork 추가 */
 	uint64_t syscall_num = f->R.rax;
+#ifdef VM
+	thread_current()->user_rsp = f->rsp;
+#endif
 
 	switch (syscall_num)
 	{
@@ -123,6 +128,12 @@ void syscall_handler(struct intr_frame *f)
 		break;
 	case SYS_CLOSE: // 13
 		close(f->R.rdi);
+		break;
+	case SYS_MMAP: // 14
+		f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+		break;
+	case SYS_MUNMAP: // 15
+		munmap(f->R.rdi);
 		break;
 	}
 }
@@ -247,7 +258,12 @@ int filesize(int fd)
 int read(int fd, void *buffer, unsigned size)
 {
 	check_address(buffer);
-
+#ifdef VM
+	// NOTE: [VM] buffer가 들어있는 프레임이 쓰기 가능한지 확인
+	struct page *page = spt_find_page(&thread_current()->spt, buffer);
+	if (page && !page->writable)
+		exit(-1);
+#endif
 	/* 파일에 동시 접근이 일어날 수 있으므로 Lock 사용 */
 	lock_acquire(&filesys_lock);
 	/* 파일 디스크립터를 이용하여 파일 객체 검색 */
@@ -327,8 +343,43 @@ unsigned tell(int fd)
 /* NOTE: [2.4] close() 시스템 콜 구현 */
 void close(int fd)
 {
+	lock_acquire(&filesys_lock);
 	/* 해당 파일 디스크립터에 해당하는 파일을 닫음 */
 	process_close_file(fd);
+	lock_release(&filesys_lock);
+}
+
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset)
+{
+	/**
+	 * TODO: mmap 호출이 실패하는 경우
+	 * 1. fd가 열린 파일의 크기가 0바이트인 경우
+	 * 2. addr이 페이지 정렬이 되지 않은 경우
+	 * 3. 매핑된 페이지 범위가 스택이나 실행 파일 로드 시 매핑된 페이지와 겹치는 경우
+	 */
+	if (addr == NULL || is_kernel_vaddr(addr))
+		return NULL;
+
+	if (addr != pg_round_down(addr) || offset != pg_round_down(offset))
+		return NULL;
+	if (is_kernel_vaddr(addr + length))
+		return NULL;
+	if (spt_find_page(&thread_current()->spt, addr))
+		return NULL;
+
+	struct file *file = process_get_file(fd);
+	if (!file)
+		return NULL;
+	if (file_length(file) <= 0 || (int)length <= 0)
+		return NULL;
+
+	return do_mmap(addr, length, writable, file, offset);
+}
+
+void munmap(void *addr)
+{
+	check_address(addr);
+	do_munmap(addr);
 }
 
 /* ---------- UTIL ---------- */

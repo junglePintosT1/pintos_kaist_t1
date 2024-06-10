@@ -11,8 +11,8 @@
 #include "vm/vm.h"
 #include "vm/uninit.h"
 
-static bool uninit_initialize (struct page *page, void *kva);
-static void uninit_destroy (struct page *page);
+static bool uninit_initialize(struct page *page, void *kva);
+static void uninit_destroy(struct page *page);
 
 /* DO NOT MODIFY this struct */
 static const struct page_operations uninit_ops = {
@@ -23,37 +23,38 @@ static const struct page_operations uninit_ops = {
 };
 
 /* DO NOT MODIFY this function */
-void
-uninit_new (struct page *page, void *va, vm_initializer *init,
-		enum vm_type type, void *aux,
-		bool (*initializer)(struct page *, enum vm_type, void *)) {
-	ASSERT (page != NULL);
+void uninit_new(struct page *page, void *va, vm_initializer *init,
+				enum vm_type type, void *aux,
+				bool (*initializer)(struct page *, enum vm_type, void *))
+{
+	ASSERT(page != NULL);
 
-	*page = (struct page) {
+	*page = (struct page){
 		.operations = &uninit_ops,
 		.va = va,
 		.frame = NULL, /* no frame for now */
-		.uninit = (struct uninit_page) {
+		.uninit = (struct uninit_page){
 			.init = init,
 			.type = type,
 			.aux = aux,
 			.page_initializer = initializer,
-		}
-	};
+		}};
 }
 
-/* Initalize the page on first fault */
+/* Initalize the page on first fault - 처음으로 폴트가 발생한 페이지를 초기화하는 함수 */
 static bool
-uninit_initialize (struct page *page, void *kva) {
+uninit_initialize(struct page *page, void *kva)
+{
 	struct uninit_page *uninit = &page->uninit;
 
 	/* Fetch first, page_initialize may overwrite the values */
 	vm_initializer *init = uninit->init;
 	void *aux = uninit->aux;
 
+	/* page_initializer를 함수 포인터로 호출 */
 	/* TODO: You may need to fix this function. */
-	return uninit->page_initializer (page, uninit->type, kva) &&
-		(init ? init (page, aux) : true);
+	return uninit->page_initializer(page, uninit->type, kva) &&
+		   (init ? init(page, aux) : true);
 }
 
 /* Free the resources hold by uninit_page. Although most of pages are transmuted
@@ -61,8 +62,12 @@ uninit_initialize (struct page *page, void *kva) {
  * exit, which are never referenced during the execution.
  * PAGE will be freed by the caller. */
 static void
-uninit_destroy (struct page *page) {
-	struct uninit_page *uninit UNUSED = &page->uninit;
+uninit_destroy(struct page *page)
+{
+	struct uninit_page *uninit = &page->uninit;
 	/* TODO: Fill this function.
 	 * TODO: If you don't have anything to do, just return. */
+	if (uninit->type == VM_ANON)
+	{
+	}
 }
