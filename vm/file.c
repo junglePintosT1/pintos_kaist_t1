@@ -53,14 +53,56 @@ bool file_backed_initializer(struct page *page, enum vm_type type, void *kva)
 static bool
 file_backed_swap_in(struct page *page, void *kva)
 {
-	struct file_page *file_page UNUSED = &page->file;
+	/* NOTE: swap in 구현 */
+	struct file_page *file_page = &page->file;
+
+	struct file *file = file_page->file;
+	off_t offset = file_page->offset;
+	size_t read_bytes = file_page->read_bytes;
+	size_t zero_bytes = PGSIZE - read_bytes;
+
+	int flag = false;
+	if (!lock_held_by_current_thread(&filesys_lock))
+	{
+		lock_acquire(&filesys_lock);
+		flag = true;
+	}
+
+	file_seek(file, offset);
+	if (file_read(file, page->frame->kva, read_bytes) != (off_t)read_bytes)
+	{
+		palloc_free_page(page->frame->kva);
+		if (flag)
+			lock_release(&filesys_lock);
+		return false;
+	}
+	if (flag)
+		lock_release(&filesys_lock);
+	memset(page->frame->kva + read_bytes, 0, zero_bytes);
+
+	return true;
 }
 
 /* Swap out the page by writeback contents to the file. */
 static bool
 file_backed_swap_out(struct page *page)
 {
-	struct file_page *file_page UNUSED = &page->file;
+	/* NOTE: swap out 구현 */
+	struct file_page *file_page = &page->file;
+	uint64_t *pml4 = thread_current()->pml4;
+	void *upage = page->va;
+
+	/* 페이지가 변경되었는지 확인 */
+	if (pml4_is_dirty(pml4, page->va))
+	{
+		lock_acquire(&filesys_lock);
+		/* 페이지가 변경되었다면, 변경된 내용을 파일에 쓰고, 페이지의 dirty를 false로 변경 */
+		file_write_at(file_page->file, page->va, file_page->read_bytes, file_page->offset);
+		lock_release(&filesys_lock);
+		pml4_set_dirty(pml4, upage, false);
+	}
+	/* pml4에서 페이지 제거 */
+	pml4_clear_page(pml4, upage);
 }
 
 /**
