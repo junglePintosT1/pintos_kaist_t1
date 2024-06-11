@@ -58,6 +58,12 @@ struct page
 	bool writable;				/* 쓰기 가능 여부 */
 	int mapped_page_count;		/* 매핑된 총 페이지의 개수 */
 
+	/* NOTE: frame에 넣을 elem 추가 */
+	struct list_elem f_elem;
+
+	/* NOTE: page owner thread 추가 */
+	struct thread *owner;
+
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union
@@ -75,7 +81,10 @@ struct page
 struct frame
 {
 	void *kva;
-	struct page *page;
+	/* NOTE: frame 구조체 변경 - page_list & frame_table에 넣을 elem */
+	// struct page *page;
+	struct list page_list;
+	struct list_elem ft_elem;
 };
 
 /* The function table for page operations.
@@ -100,6 +109,13 @@ struct page_operations
 struct supplemental_page_table
 {
 	struct hash hash; /* hash 자료구조로 구현 */
+};
+
+/* NOTE: frame table 구조체 선언 */
+struct frame_table
+{
+	struct list_elem *curr_frame;
+	struct list frame_list;
 };
 
 #include "threads/thread.h"
