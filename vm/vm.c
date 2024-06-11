@@ -109,7 +109,7 @@ spt_find_page(struct supplemental_page_table *spt, void *va)
 
 	/* page 동적 할당 실패 시 NULL 반환 */
 	if (page == NULL)
-		return NULL;
+		PANIC("spt find page");
 	page->va = pg_round_down(va);				 /* 할당된 page 구조체의 가상 주소 설정 */
 	e = hash_find(&spt->hash, &page->hash_elem); /* spt의 해시 테이블에서 page의 hash_elem 찾기  */
 	free(page);									 /* page 구조체 할당 해제 */
@@ -155,9 +155,7 @@ static bool vm_find_victim(struct frame *frame)
 		}
 		uint64_t *pte = pml4e_walk(page->owner->pml4, page->va, 0);
 		if (is_kern_pte(pte))
-		{
 			is_victim = false;
-		}
 	}
 	return is_victim;
 }
@@ -193,29 +191,18 @@ vm_evict_frame(void)
 {
 	struct frame *victim = vm_get_victim();
 	/* TODO: swap out the victim and return the evicted frame. */
-	printf("sys : ----------------펑--------------\n");
 
 	/* clock pointer 위치 갱신 */
 	frame_table.curr_frame = list_next(&victim->ft_elem);
 
-	printf("sys : ----------------펑--------------\n");
-
 	for (struct list_elem *pe = list_begin(&victim->page_list); pe != list_end(&victim->page_list); pe = list_next(pe))
 	{
-		printf("sys : ----------------여기 펑--------------\n");
-
 		struct page *page = list_entry(pe, struct page, f_elem);
-		printf("%d\n", page->operations->type);
 		swap_out(page);
 		page->frame = NULL;
+		list_remove(&page->f_elem);
 	}
-	printf("sys : ----------------펑--------------\n");
-
-	list_init(&victim->page_list);
-	printf("sys : ----------------펑--------------\n");
-
 	list_remove(&victim->ft_elem);
-	printf("sys : ----------------펑--------------\n");
 
 	return victim;
 }
@@ -239,24 +226,11 @@ vm_get_frame(void)
 	/* NOTE: 페이지 할당 실패 시 swap out 구현 */
 	if (frame->kva == NULL)
 	{
-		printf("sys : ----------------펑--------------\n");
 		frame = vm_evict_frame();
 	}
 
 	/* NOTE: swap in 시 frame table에 추가 및 curr_frame 갱신 */
-
-	// printf("sys : before condi\n");
-
-	if (frame_table.curr_frame == list_tail(&frame_table.frame_list))
-		list_push_back(&frame_table.frame_list, &frame->ft_elem);
-	else
-		list_insert(&frame_table.curr_frame, &frame->ft_elem);
-
-	// printf("sys : after condi\n");
-
-	frame_table.curr_frame = list_next(&frame->ft_elem);
-
-	// printf("sys : after next\n");
+	list_push_back(&frame_table.frame_list, &frame->ft_elem);
 
 	/* NOTE: frame의 page_list 초기화 */
 	ASSERT(frame != NULL);
@@ -375,7 +349,6 @@ vm_do_claim_page(struct page *page)
 	/* NOTE: 페이지 테이블에 페이지의 VA와 프레임의 PA를 삽입 - install_page 참고 */
 	if (pml4_get_page(thread_current()->pml4, page->va) == NULL && pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable))
 		return swap_in(page, frame->kva);
-	printf("sys : hihi\n");
 	return false;
 }
 
