@@ -61,6 +61,9 @@ struct page
 	/* NOTE: frame에 넣을 elem 추가 */
 	struct list_elem f_elem;
 
+	/* NOTE: page owner thread 추가 */
+	struct thread *owner;
+
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union
@@ -111,7 +114,7 @@ struct supplemental_page_table
 /* NOTE: frame table 구조체 선언 */
 struct frame_table
 {
-	struct frame *curr_frame;
+	struct list_elem *curr_frame;
 	struct list frame_list;
 };
 

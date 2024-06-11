@@ -17,6 +17,7 @@ void vm_init(void)
 	vm_file_init();
 	/* NOTE: frame table의 frame_list 초기화 */
 	list_init(&frame_table.frame_list);
+	frame_table.curr_frame = list_tail(&frame_table.frame_list);
 #ifdef EFILESYS /* For project 4 */
 	pagecache_init();
 #endif
@@ -78,7 +79,8 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 			goto err;
 		}
 
-		page->writable = writable; /* page에 쓰기 가능 여부 설정 */
+		page->writable = writable;		/* page에 쓰기 가능 여부 설정 */
+		page->owner = thread_current(); /* page owner thread 설정 */
 		/* 현재 프로세스의 보조 페이지 테이블에 생성한 페이지 추가 */
 		if (!spt_insert_page(&thread_current()->spt, page))
 		{
@@ -140,14 +142,48 @@ void spt_remove_page(struct supplemental_page_table *spt, struct page *page)
 	return true;
 }
 
+static bool vm_find_victim(struct frame *frame)
+{
+	bool is_victim = true;
+	for (struct list_elem *pe = list_begin(&frame->page_list); pe != list_end(&frame->page_list); pe = list_next(pe))
+	{
+		struct page *page = list_entry(pe, struct page, f_elem);
+		if (pml4_is_accessed(page->owner->pml4, page->va))
+		{
+			pml4_set_accessed(page->owner->pml4, page->va, 0);
+			is_victim = false;
+		}
+		uint64_t *pte = pml4e_walk(page->owner->pml4, page->va, 0);
+		if (is_kern_pte(pte))
+		{
+			is_victim = false;
+		}
+	}
+	return is_victim;
+}
+
 /* Get the struct frame, that will be evicted. */
 static struct frame *
 vm_get_victim(void)
 {
-	struct frame *victim = NULL;
-	/* TODO: The policy for eviction is up to you. */
+	/* NOTE: The policy for eviction is up to you. */
+	struct list_elem *start_elem = frame_table.curr_frame;
+	for (struct list_elem *e = start_elem; e != list_end(&frame_table.frame_list); e = list_next(e))
+	{
+		// frame의 page list 순회하며 accessed 확인
+		struct frame *frame = list_entry(e, struct frame, ft_elem);
 
-	return victim;
+		if (vm_find_victim(frame))
+			return frame;
+	}
+	for (struct list_elem *e = list_begin(&frame_table.frame_list); e != list_end(&frame_table.frame_list); e = list_next(e))
+	{
+		// frame의 page list 순회하며 accessed 확인
+		struct frame *frame = list_entry(e, struct frame, ft_elem);
+		if (vm_find_victim(frame))
+			return frame;
+	}
+	return list_entry(list_begin(&frame_table.frame_list), struct frame, ft_elem);
 }
 
 /* Evict one page and return the corresponding frame.
@@ -155,10 +191,33 @@ vm_get_victim(void)
 static struct frame *
 vm_evict_frame(void)
 {
-	struct frame *victim UNUSED = vm_get_victim();
+	struct frame *victim = vm_get_victim();
 	/* TODO: swap out the victim and return the evicted frame. */
+	printf("sys : ----------------펑--------------\n");
 
-	return NULL;
+	/* clock pointer 위치 갱신 */
+	frame_table.curr_frame = list_next(&victim->ft_elem);
+
+	printf("sys : ----------------펑--------------\n");
+
+	for (struct list_elem *pe = list_begin(&victim->page_list); pe != list_end(&victim->page_list); pe = list_next(pe))
+	{
+		printf("sys : ----------------여기 펑--------------\n");
+
+		struct page *page = list_entry(pe, struct page, f_elem);
+		printf("%d\n", page->operations->type);
+		swap_out(page);
+		page->frame = NULL;
+	}
+	printf("sys : ----------------펑--------------\n");
+
+	list_init(&victim->page_list);
+	printf("sys : ----------------펑--------------\n");
+
+	list_remove(&victim->ft_elem);
+	printf("sys : ----------------펑--------------\n");
+
+	return victim;
 }
 
 /**
@@ -172,19 +231,34 @@ static struct frame *
 vm_get_frame(void)
 {
 	struct frame *frame = malloc(sizeof(struct frame));
+	list_init(&frame->page_list);
 
 	/* NOTE: [VM] 모든 유저 페이지를 위한 프레임은 PAL_USER을 통해 할당해야 함 */
 	frame->kva = palloc_get_page(PAL_USER);
+
+	/* NOTE: 페이지 할당 실패 시 swap out 구현 */
 	if (frame->kva == NULL)
 	{
-		/* TODO: 페이지 할당 실패 시 swap out 구현 */
-		free(frame);
-		PANIC("todo");
+		printf("sys : ----------------펑--------------\n");
+		frame = vm_evict_frame();
 	}
 
-	/* NOTE: frame의 page_list 초기화 */
-	list_init(&frame->page_list);
+	/* NOTE: swap in 시 frame table에 추가 및 curr_frame 갱신 */
 
+	// printf("sys : before condi\n");
+
+	if (frame_table.curr_frame == list_tail(&frame_table.frame_list))
+		list_push_back(&frame_table.frame_list, &frame->ft_elem);
+	else
+		list_insert(&frame_table.curr_frame, &frame->ft_elem);
+
+	// printf("sys : after condi\n");
+
+	frame_table.curr_frame = list_next(&frame->ft_elem);
+
+	// printf("sys : after next\n");
+
+	/* NOTE: frame의 page_list 초기화 */
 	ASSERT(frame != NULL);
 	ASSERT(list_empty(&frame->page_list));
 
@@ -301,6 +375,7 @@ vm_do_claim_page(struct page *page)
 	/* NOTE: 페이지 테이블에 페이지의 VA와 프레임의 PA를 삽입 - install_page 참고 */
 	if (pml4_get_page(thread_current()->pml4, page->va) == NULL && pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable))
 		return swap_in(page, frame->kva);
+	printf("sys : hihi\n");
 	return false;
 }
 
