@@ -253,6 +253,21 @@ vm_stack_growth(void *addr)
 static bool
 vm_handle_wp(struct page *page UNUSED)
 {
+	printf("sys : 이제 시작이야!\n");
+	struct frame *origin = page->frame;
+	pml4_clear_page(page->owner->pml4, page->va);
+
+	list_remove(&page->f_elem);
+
+	if(list_size(&page->frame->page_list) == 1) {
+		struct list_elem *pe = list_begin(&page->frame->page_list);
+		struct page *p = list_entry(pe, struct page, f_elem);
+
+			pml4_set_page(p->owner->pml4, p->va, p->frame->kva, p->writable);
+	}
+	memcpy(page->frame->kva, origin->kva, PGSIZE);
+
+	return true;
 }
 
 /**
@@ -291,8 +306,28 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr,
 	if (page == NULL)
 		return false;
 
+		printf("sys : 아직 안들어갔지..?\n");
+	
 	if (write == 1 && page->writable == 0)
 		return false;
+
+		// printf("sys : 여기까지\n");
+
+		// printf("sys : page owner = %d\n", page -> owner == NULL);
+		// printf("sys : page owner pml4 = %d\n", page -> va == NULL);
+
+	uint64_t *pte = pml4e_walk(page->owner->pml4, page->va, 0);
+	printf("sys : pte = %p\n", pte);
+
+	if (write == 1 && pte != 0 && is_writable(pte) == false) /* write-protected */ {
+		printf("sys : if 문 안\n");
+
+		vm_handle_wp(page);
+		
+	}
+		printf("sys : after handle wp\n");
+		
+
 
 	return vm_do_claim_page(page);
 }
@@ -396,54 +431,82 @@ void supplemental_page_table_init(struct supplemental_page_table *spt)
 bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 								  struct supplemental_page_table *src UNUSED)
 {
+	// printf(" sys : 안들어와 ? \n");
 	/* TODO: [VM] src부터 dst까지 spt 복사 구현 */
 	/* TODO: spt를 순회하면서 정확한 복사본을 만들어라. */
 	/* TODO: uninit 페이지를 할당하고 이 함수를 바로 요청할 필요가 있을 것이다. */
 	struct hash_iterator i;
 	hash_first(&i, &src->hash);
+			// printf("sys : while 들어가잖아. \n");
+
 	while (hash_next(&i))
 	{
+			// printf("sys : while 들어왔잖아. \n");
+
 		struct page *src_page = hash_entry(hash_cur(&i), struct page, hash_elem);
-		enum vm_type type = src_page->operations->type;
+		enum vm_type type = VM_TYPE(src_page->operations->type);
 		void *upage = src_page->va;
 		bool writable = src_page->writable;
+
+
 		if (type == VM_UNINIT)
 		{
+			// printf("sys : unint 이잖아  \n");
+
 			vm_initializer *init = src_page->uninit.init;
 			void *aux = src_page->uninit.aux;
 			vm_alloc_page_with_initializer(page_get_type(src_page), upage, writable, init, aux);
+
 			continue;
 		}
 
 		if (type == VM_FILE)
 		{
+			printf("sys : file 들어왔잖아. \n");
+			
 			struct page_load_info *file_aux = malloc(sizeof(struct page_load_info));
 			file_aux->file = src_page->file.file;
 			file_aux->offset = src_page->file.offset;
 			file_aux->read_bytes = src_page->file.read_bytes;
-			// file_aux->zero_bytes = src_page->file.zero_bytes;
 
 			if (!vm_alloc_page_with_initializer(type, upage, writable, NULL, file_aux))
 				return false;
 			struct page *file_page = spt_find_page(dst, upage);
 			file_backed_initializer(file_page, type, NULL);
 			file_page->frame = src_page->frame;
-			pml4_set_page(thread_current()->pml4, file_page->va, src_page->frame->kva, src_page->writable);
+
+			if (src_page -> frame) {
+				pml4_set_page(file_page->owner->pml4, file_page->va, src_page->frame->kva, false);
+				pml4_set_page(src_page->owner->pml4, src_page->va, src_page->frame->kva, false);
+				// printf("sys: is same => %d\n", file_page->frame->kva == src_page->frame->kva);
+			}
 			continue;
 		}
 
-		if (!vm_alloc_page(type, upage, writable))
-			return false;
 
-		if (!vm_claim_page(upage))
-			return false;
+		if ( type == VM_ANON ) {
+			printf("sys : anon 이잖아 \n");
+			if (!vm_alloc_page(type, upage, writable))
+				return false;
 
-		struct page *dst_page = spt_find_page(dst, upage);
-		if (dst_page == NULL)
-			return false;
+			struct page *dst_page = spt_find_page(dst, upage);	
+			if (dst_page == NULL)
+				return false;
 
-		memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
+			anon_initializer(dst_page, type, NULL);
+			dst_page->frame = src_page->frame;
+
+			if (src_page -> frame) {
+				pml4_set_page(src_page->owner->pml4, src_page->va, src_page->frame->kva, false);
+				pml4_set_page(dst_page->owner->pml4, dst_page->va, src_page->frame->kva, false);
+				// printf("sys: is same => %d\n", dst_page->frame->kva == src_page->frame->kva);
+			}
+			continue;
+		} 
 	}
+
+			printf("sys : while 밖이잖아. \n");
+
 	return true;
 }
 
