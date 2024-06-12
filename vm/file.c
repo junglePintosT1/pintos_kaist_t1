@@ -89,7 +89,7 @@ file_backed_swap_out(struct page *page)
 {
 	/* NOTE: swap out 구현 */
 	struct file_page *file_page = &page->file;
-	uint64_t *pml4 = thread_current()->pml4;
+	uint64_t *pml4 = page->owner->pml4;
 	void *upage = page->va;
 
 	/* 페이지가 변경되었는지 확인 */
@@ -102,7 +102,11 @@ file_backed_swap_out(struct page *page)
 		pml4_set_dirty(pml4, upage, false);
 	}
 	/* pml4에서 페이지 제거 */
+	page->frame = NULL;
+	list_remove(&page->f_elem);
 	pml4_clear_page(pml4, upage);
+
+	return true;
 }
 
 /**
@@ -115,7 +119,7 @@ static void
 file_backed_destroy(struct page *page)
 {
 	struct file_page *file_page = &page->file;
-	uint64_t *pml4 = thread_current()->pml4;
+	uint64_t *pml4 = page->owner->pml4;
 	void *upage = page->va;
 
 	/* 페이지가 변경되었는지 확인 */
@@ -129,6 +133,7 @@ file_backed_destroy(struct page *page)
 	}
 	/* pml4에서 페이지 제거 */
 	pml4_clear_page(pml4, upage);
+	list_remove(&page->f_elem);
 }
 
 /**

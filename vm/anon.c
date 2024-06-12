@@ -45,6 +45,7 @@ bool anon_initializer(struct page *page, enum vm_type type, void *kva)
 	page->operations = &anon_ops;
 
 	struct anon_page *anon_page = &page->anon;
+	anon_page->swap_table_idx = -1;
 }
 
 /* Swap in the page by read contents from the swap disk. */
@@ -61,6 +62,8 @@ anon_swap_in(struct page *page, void *kva)
 	}
 	// bitmap 초기화
 	bitmap_set_multiple(swap_table, start_idx, PGSIZE / DISK_SECTOR_SIZE, false);
+
+	anon_page -> swap_table_idx = -1;
 }
 
 /* Swap out the page by writing contents to the swap disk. */
@@ -68,6 +71,8 @@ static bool
 anon_swap_out(struct page *page)
 {
 	struct anon_page *anon_page = &page->anon;
+	uint64_t *pml4 = page->owner->pml4;
+	void *upage = page->va;
 
 	// 빈 슬롯 찾을 때 swap table 사용 - bitmap_scan
 	size_t start_idx = bitmap_scan_and_flip(swap_table, 0, PGSIZE / DISK_SECTOR_SIZE, false);
@@ -84,7 +89,7 @@ anon_swap_out(struct page *page)
 	// frame - page 매핑 해제
 	page->frame = NULL;
 	list_remove(&page->f_elem);
-	pml4_clear_page(page->owner->pml4, page->va);
+	pml4_clear_page(pml4, upage);
 
 	/* TODO: swap 영역에 빈 공간 없으면 PANIC */
 
@@ -96,4 +101,9 @@ static void
 anon_destroy(struct page *page)
 {
 	struct anon_page *anon_page = &page->anon;
+
+	list_remove(&page->f_elem);
+
+	if (anon_page->swap_table_idx != -1) 
+		bitmap_set_multiple(swap_table, anon_page->swap_table_idx, PGSIZE / DISK_SECTOR_SIZE, false);
 }
