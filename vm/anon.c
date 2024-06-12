@@ -3,6 +3,7 @@
 #include "vm/vm.h"
 #include "devices/disk.h"
 #include "threads/mmu.h"
+#include "lib/kernel/list.h"
 
 /* DO NOT MODIFY BELOW LINE */
 static struct disk *swap_disk;
@@ -102,7 +103,8 @@ anon_destroy(struct page *page)
 {
 	struct anon_page *anon_page = &page->anon;
 
-	list_remove(&page->f_elem);
+	if (is_interior (&page->f_elem))
+		list_remove(&page->f_elem);
 
 	if (anon_page->swap_table_idx != -1) 
 		bitmap_set_multiple(swap_table, anon_page->swap_table_idx, PGSIZE / DISK_SECTOR_SIZE, false);

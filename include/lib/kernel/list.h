@@ -104,6 +104,7 @@ struct list {
 	((STRUCT *) ((uint8_t *) &(LIST_ELEM)->next     \
 		- offsetof (STRUCT, MEMBER.next)))
 
+bool is_interior (struct list_elem *elem);
 void list_init (struct list *);
 
 /* List traversal. */

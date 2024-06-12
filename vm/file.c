@@ -6,6 +6,7 @@
 #include "threads/mmu.h"
 #include "vm/vm.h"
 #include "userprog/syscall.h"
+#include "lib/kernel/list.h"
 
 static bool file_backed_swap_in(struct page *page, void *kva);
 static bool file_backed_swap_out(struct page *page);
@@ -133,7 +134,8 @@ file_backed_destroy(struct page *page)
 	}
 	/* pml4에서 페이지 제거 */
 	pml4_clear_page(pml4, upage);
-	list_remove(&page->f_elem);
+	if (is_interior (&page->f_elem))
+		list_remove(&page->f_elem);
 }
 
 /**
