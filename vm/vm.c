@@ -104,15 +104,13 @@ err:
 struct page *
 spt_find_page(struct supplemental_page_table *spt, void *va)
 {
-	struct page *page = malloc(sizeof(struct page)); /* page 구조체 동적 할당 */
 	struct hash_elem *e;
 
-	/* page 동적 할당 실패 시 NULL 반환 */
-	if (page == NULL)
-		PANIC("spt find page");
-	page->va = pg_round_down(va);				 /* 할당된 page 구조체의 가상 주소 설정 */
-	e = hash_find(&spt->hash, &page->hash_elem); /* spt의 해시 테이블에서 page의 hash_elem 찾기  */
-	free(page);									 /* page 구조체 할당 해제 */
+	struct page page;
+
+	page.va = pg_round_down(va);
+	
+	e = hash_find(&spt->hash, &page.hash_elem);
 
 	/* va와 대응하는 page 구조체 반환 */
 	return e != NULL ? hash_entry(e, struct page, hash_elem) : NULL;
@@ -200,7 +198,6 @@ vm_evict_frame(void)
 		struct page *page = list_entry(pe, struct page, f_elem);
 		swap_out(page);
 		page->frame = NULL;
-		list_remove(&page->f_elem);
 	}
 	list_remove(&victim->ft_elem);
 
