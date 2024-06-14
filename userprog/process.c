@@ -174,8 +174,6 @@ __do_fork(void *aux)
 	process_activate(current);
 #ifdef VM
 	supplemental_page_table_init(&current->spt);
-		printf("sys : before copy\n");
-
 	if (!supplemental_page_table_copy(&current->spt, &parent->spt))
 		goto error;
 #else
@@ -194,7 +192,6 @@ __do_fork(void *aux)
 	sema_up(&current->load_sema);
 	process_init();
 
-	printf("sys : before do_iret\n");
 	/* Finally, switch to the newly created process. */
 	if (succ)
 		do_iret(&if_);
